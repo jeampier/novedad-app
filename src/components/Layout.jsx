@@ -54,6 +54,13 @@ const mainModules = [
   },
 ]
 
+const payrollModules = [
+  { path: '/payroll/schedule',    label: 'Programación' },
+  { path: '/payroll/shift-types', label: 'Tipos de turno' },
+  { path: '/payroll/periods',     label: 'Períodos' },
+  { path: '/payroll/records',     label: 'Consolidado' },
+]
+
 const adminModules = [
   { path: '/admin',         label: 'Panel admin' },
   { path: '/admin/users',   label: 'Usuarios' },
@@ -104,6 +111,23 @@ export default function Layout({ children }) {
               {m.label}
             </NavLink>
           ))}
+
+          {/* Sección Nómina */}
+          <>
+            <div className="mt-4 mb-2 px-4">
+              <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Nómina</p>
+            </div>
+            {payrollModules.map(m => (
+              <NavLink key={m.path} to={m.path}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
+                  (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
+                }>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                {m.label}
+              </NavLink>
+            ))}
+          </>
 
           {/* Sección Administración */}
           {isAdmin && (

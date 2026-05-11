@@ -11,6 +11,10 @@ import AdminPage       from './pages/admin/AdminPage'
 import UsersPage       from './pages/admin/UsersPage'
 import RolesPage       from './pages/admin/RolesPage'
 import AuditPage       from './pages/admin/AuditPage'
+import SchedulePage    from './pages/payroll/SchedulePage'
+import ShiftTypesPage  from './pages/payroll/ShiftTypesPage'
+import PeriodsPage     from './pages/payroll/PeriodsPage'
+import RecordsPage     from './pages/payroll/RecordsPage'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -30,16 +34,20 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login"        element={<LoginPage />} />
-          <Route path="/"             element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-          <Route path="/absences"     element={<PrivateRoute><AbsencesPage /></PrivateRoute>} />
-          <Route path="/accidents"    element={<PrivateRoute><AccidentsPage /></PrivateRoute>} />
-          <Route path="/shifts"       element={<PrivateRoute><ShiftsPage /></PrivateRoute>} />
-          <Route path="/employees"    element={<PrivateRoute><EmployeesPage /></PrivateRoute>} />
-          <Route path="/admin"        element={<AdminRoute><AdminPage /></AdminRoute>} />
-          <Route path="/admin/users"  element={<AdminRoute><UsersPage /></AdminRoute>} />
-          <Route path="/admin/roles"  element={<AdminRoute><RolesPage /></AdminRoute>} />
-          <Route path="/admin/audit"  element={<AdminRoute><AuditPage /></AdminRoute>} />
+          <Route path="/login"                element={<LoginPage />} />
+          <Route path="/"                     element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/absences"             element={<PrivateRoute><AbsencesPage /></PrivateRoute>} />
+          <Route path="/accidents"            element={<PrivateRoute><AccidentsPage /></PrivateRoute>} />
+          <Route path="/shifts"               element={<PrivateRoute><ShiftsPage /></PrivateRoute>} />
+          <Route path="/employees"            element={<PrivateRoute><EmployeesPage /></PrivateRoute>} />
+          <Route path="/payroll/schedule"     element={<PrivateRoute><SchedulePage /></PrivateRoute>} />
+          <Route path="/payroll/shift-types"  element={<PrivateRoute><ShiftTypesPage /></PrivateRoute>} />
+          <Route path="/payroll/periods"      element={<PrivateRoute><PeriodsPage /></PrivateRoute>} />
+          <Route path="/payroll/records"      element={<PrivateRoute><RecordsPage /></PrivateRoute>} />
+          <Route path="/admin"                element={<AdminRoute><AdminPage /></AdminRoute>} />
+          <Route path="/admin/users"          element={<AdminRoute><UsersPage /></AdminRoute>} />
+          <Route path="/admin/roles"          element={<AdminRoute><RolesPage /></AdminRoute>} />
+          <Route path="/admin/audit"          element={<AdminRoute><AuditPage /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
