@@ -1,15 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import Layout        from './components/Layout'
 import LoginPage     from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import AbsencesPage  from './pages/absences/AbsencesPage'
 import AccidentsPage from './pages/accidents/AccidentsPage'
 import ShiftsPage    from './pages/shifts/ShiftsPage'
 import EmployeesPage from './pages/employees/EmployeesPage'
+
 function PrivateRoute({ children }) {
   const { user } = useAuth()
-  return user ? children : <Navigate to="/login" replace />
+  return user ? <Layout>{children}</Layout> : <Navigate to="/login" replace />
 }
+
 export default function App() {
   return (
     <AuthProvider>
