@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const modules = [
+const mainModules = [
   {
     path: '/',
     label: 'Dashboard',
@@ -54,14 +54,19 @@ const modules = [
   },
 ]
 
+const adminModules = [
+  { path: '/admin',         label: 'Panel admin' },
+  { path: '/admin/users',   label: 'Usuarios' },
+  { path: '/admin/roles',   label: 'Roles y permisos' },
+  { path: '/admin/audit',   label: 'Auditoría' },
+]
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin')
 
-  function handleLogout() {
-    logout()
-    navigate('/login')
-  }
+  function handleLogout() { logout(); navigate('/login') }
 
   return (
     <div className="flex min-h-screen" style={{ fontFamily: "'Poppins', sans-serif" }}>
@@ -71,7 +76,6 @@ export default function Layout({ children }) {
         className="flex flex-col fixed top-0 left-0 h-full z-20 overflow-hidden"
         style={{ width: 240, background: 'linear-gradient(180deg, #02005B 0%, #060080 100%)' }}
       >
-        {/* Elementos decorativos SVG */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="220" cy="60" r="70" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="1" />
           <circle cx="220" cy="60" r="45" fill="none" stroke="rgba(99,102,241,0.1)" strokeWidth="1" />
@@ -80,7 +84,6 @@ export default function Layout({ children }) {
           <circle cx="30" cy="120" r="3" fill="rgba(165,180,252,0.4)" />
           <circle cx="200" cy="200" r="2" fill="rgba(165,180,252,0.3)" />
           <circle cx="50" cy="480" r="2.5" fill="rgba(165,180,252,0.3)" />
-          <circle cx="180" cy="420" r="2" fill="rgba(165,180,252,0.25)" />
         </svg>
 
         {/* Logo */}
@@ -89,24 +92,37 @@ export default function Layout({ children }) {
           <p className="text-indigo-300 text-xs mt-0.5 font-light">Sistema de novedades</p>
         </div>
 
-        {/* Navegación */}
-        <nav className="relative z-10 flex-1 px-3 py-6 flex flex-col gap-1">
-          {modules.map(m => (
-            <NavLink
-              key={m.path}
-              to={m.path}
-              end={m.path === '/'}
+        {/* Nav principal */}
+        <nav className="relative z-10 flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
+          {mainModules.map(m => (
+            <NavLink key={m.path} to={m.path} end={m.path === '/'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ` +
-                (isActive
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-indigo-200 hover:bg-white/8 hover:text-white')
-              }
-            >
+                (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-200 hover:bg-white/8 hover:text-white')
+              }>
               {m.icon}
               {m.label}
             </NavLink>
           ))}
+
+          {/* Sección Administración */}
+          {isAdmin && (
+            <>
+              <div className="mt-4 mb-2 px-4">
+                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Administración</p>
+              </div>
+              {adminModules.map(m => (
+                <NavLink key={m.path} to={m.path} end={m.path === '/admin'}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
+                    (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
+                  }>
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                  {m.label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Usuario + logout */}
@@ -116,14 +132,12 @@ export default function Layout({ children }) {
               {user?.email?.[0] ?? 'U'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-white text-xs font-medium truncate">{user?.email}</p>
-              <p className="text-indigo-300 text-xs font-light">Administrador</p>
+              <p className="text-white text-xs font-medium truncate">{user?.full_name || user?.email}</p>
+              <p className="text-indigo-300 text-xs font-light capitalize">{user?.role || 'Usuario'}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-indigo-200 hover:bg-white/10 hover:text-white transition-all duration-200 text-sm cursor-pointer border-0 bg-transparent"
-          >
+          <button onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-indigo-200 hover:bg-white/10 hover:text-white transition-all duration-200 text-sm cursor-pointer border-0 bg-transparent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
@@ -133,7 +147,7 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* Contenido principal */}
+      {/* Contenido */}
       <main className="flex-1 bg-gray-50 min-h-screen" style={{ marginLeft: 240 }}>
         {children}
       </main>
