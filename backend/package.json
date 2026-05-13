@@ -6,7 +6,9 @@
     "start": "node src/index.js",
     "migrate": "node src/db/migrate.js",
     "migrate:admin": "node src/db/migrate_admin.js",
-    "migrate:payroll": "node src/db/migrate_payroll.js"
+    "migrate:payroll": "node src/db/migrate_payroll.js",
+    "migrate:concepts": "node src/db/migrate_concepts.js",
+    "migrate:employees": "node src/db/migrate_employees.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
