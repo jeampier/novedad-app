@@ -1,0 +1,62 @@
+require('dotenv').config()
+const express = require('express')
+const cors    = require('cors')
+require('./commands')
+
+const authRoutes     = require('./routes/auth')
+const commandRoutes  = require('./routes/commands')
+const employeeRoutes = require('./routes/employees')
+const absenceRoutes  = require('./routes/absences')
+const accidentRoutes = require('./routes/accidents')
+const shiftRoutes    = require('./routes/shifts')
+const adminUsers     = require('./routes/admin/users')
+const adminRoles     = require('./routes/admin/roles')
+const adminAudit     = require('./routes/admin/audit')
+
+const payrollConcepts   = require('./routes/payroll/concepts')
+const payrollShiftTypes = require('./routes/payroll/shiftTypes')
+const payrollSchedule   = require('./routes/payroll/schedule')
+const payrollHolidays   = require('./routes/payroll/holidays')
+const payrollPeriods    = require('./routes/payroll/periods')
+const payrollCalculate  = require('./routes/payroll/calculate')
+const payrollRecords    = require('./routes/payroll/records')
+const payrollExport     = require('./routes/payroll/export')
+
+const app = express()
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || origin === process.env.FRONTEND_URL)
+      return cb(null, true)
+    cb(new Error('CORS no permitido'))
+  }
+}))
+app.use(express.json())
+
+app.get('/health', (_, res) => res.json({ status: 'ok' }))
+
+app.use('/api/auth',           authRoutes)
+app.use('/api/commands',       commandRoutes)
+app.use('/api/employees',      employeeRoutes)
+app.use('/api/absences',       absenceRoutes)
+app.use('/api/accidents',      accidentRoutes)
+app.use('/api/shifts',         shiftRoutes)
+app.use('/api/admin/users',    adminUsers)
+app.use('/api/admin/roles',    adminRoles)
+app.use('/api/admin/audit',    adminAudit)
+
+app.use('/api/payroll/concepts',    payrollConcepts)
+app.use('/api/payroll/shift-types', payrollShiftTypes)
+app.use('/api/payroll/schedule',    payrollSchedule)
+app.use('/api/payroll/holidays',    payrollHolidays)
+app.use('/api/payroll/periods',     payrollPeriods)
+app.use('/api/payroll/calculate',   payrollCalculate)
+app.use('/api/payroll/records',     payrollRecords)
+app.use('/api/payroll/export',      payrollExport)
+
+app.use((err, req, res, next) => {
+  console.error(err.message)
+  res.status(err.status || 500).json({ error: err.message || 'Error interno' })
+})
+
+const PORT = process.env.PORT || 3001
+app.listen(PORT, () => console.log('Backend en puerto ' + PORT))
