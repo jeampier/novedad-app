@@ -4,10 +4,15 @@ const employeeRepo = {
   async create(d) {
     const { rows } = await query(
       `INSERT INTO employees
-         (name, document, position, area, group_name, start_date, shift, base_salary, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [d.name, d.document, d.position, d.area || null, d.groupName || null,
-       d.startDate || null, d.shift || null, d.baseSalary || 0, d.createdBy]
+         (first_name, last_name, document_type, document, position, area, group_name,
+          start_date, shift_type_id, base_salary, phone, email, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [
+        d.firstName, d.lastName || '', d.documentType || 'CC',
+        d.document, d.position, d.area || null, d.groupName || null,
+        d.startDate || null, d.shiftTypeId || null, d.baseSalary || 0,
+        d.phone || null, d.email || null, d.createdBy,
+      ]
     )
     return rows[0]
   },
@@ -15,13 +20,26 @@ const employeeRepo = {
   async update(id, d) {
     const { rows } = await query(
       `UPDATE employees SET
-         name=$1, document=$2, position=$3, area=$4, group_name=$5,
-         shift=$6, base_salary=$7
-       WHERE id=$8 RETURNING *`,
-      [d.name, d.document, d.position, d.area || null, d.groupName || null,
-       d.shift || null, d.baseSalary ?? 0, id]
+         first_name    = $1,
+         last_name     = $2,
+         document_type = $3,
+         document      = $4,
+         position      = $5,
+         area          = $6,
+         group_name    = $7,
+         shift_type_id = $8,
+         base_salary   = $9,
+         phone         = $10,
+         email         = $11
+       WHERE id = $12 RETURNING *`,
+      [
+        d.firstName, d.lastName || '', d.documentType || 'CC',
+        d.document, d.position, d.area || null, d.groupName || null,
+        d.shiftTypeId || null, d.baseSalary ?? 0,
+        d.phone || null, d.email || null, id,
+      ]
     )
-    return rows[0]
+    return rows[0] || null
   },
 
   async deactivate(d) {
@@ -41,18 +59,44 @@ const employeeRepo = {
   },
 
   async findAll() {
-    const { rows } = await query(
-      `SELECT * FROM employees WHERE status='active' ORDER BY name`
-    )
+    const { rows } = await query(`
+      SELECT e.*,
+             st.name  AS shift_name,
+             st.code  AS shift_code,
+             st.color AS shift_color
+      FROM employees e
+      LEFT JOIN shift_types st ON st.id = e.shift_type_id
+      WHERE e.status = 'active'
+      ORDER BY e.last_name, e.first_name
+    `)
+    return rows
+  },
+
+  async findAll_including_inactive() {
+    const { rows } = await query(`
+      SELECT e.*,
+             st.name  AS shift_name,
+             st.code  AS shift_code,
+             st.color AS shift_color
+      FROM employees e
+      LEFT JOIN shift_types st ON st.id = e.shift_type_id
+      ORDER BY e.last_name, e.first_name
+    `)
     return rows
   },
 
   async findById(id) {
-    const { rows } = await query(
-      'SELECT * FROM employees WHERE id=$1', [id]
-    )
-    return rows[0]
-  }
+    const { rows } = await query(`
+      SELECT e.*,
+             st.name  AS shift_name,
+             st.code  AS shift_code,
+             st.color AS shift_color
+      FROM employees e
+      LEFT JOIN shift_types st ON st.id = e.shift_type_id
+      WHERE e.id = $1
+    `, [id])
+    return rows[0] || null
+  },
 }
 
 module.exports = employeeRepo

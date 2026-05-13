@@ -4,8 +4,13 @@ const { requireAuth, requireRole } = require('../middleware/auth')
 const { auditRead } = require('../middleware/auditLog')
 
 router.get('/', requireAuth, auditRead('Empleados'), async (req, res, next) => {
-  try { res.json({ data: await repo.findAll() }) }
-  catch (err) { next(err) }
+  try {
+    const includeInactive = req.query.includeInactive === 'true'
+    const data = includeInactive
+      ? await repo.findAll_including_inactive()
+      : await repo.findAll()
+    res.json({ data })
+  } catch (err) { next(err) }
 })
 
 router.get('/:id', requireAuth, async (req, res, next) => {
@@ -18,13 +23,17 @@ router.get('/:id', requireAuth, async (req, res, next) => {
 
 router.post('/', requireAuth, requireRole('admin', 'supervisor'), async (req, res, next) => {
   try {
-    const { name, document, position, area, groupName, shift, startDate, baseSalary } = req.body
-    if (!name || !document || !position) {
-      return res.status(400).json({ error: 'name, document y position son requeridos' })
+    const { firstName, lastName, documentType, document, position, area, groupName,
+            shiftTypeId, startDate, baseSalary, phone, email } = req.body
+
+    if (!firstName || !document || !position) {
+      return res.status(400).json({ error: 'firstName, document y position son requeridos' })
     }
+
     const emp = await repo.create({
-      name, document, position, area, groupName, shift, startDate, baseSalary,
-      createdBy: req.user.id
+      firstName, lastName, documentType, document, position, area, groupName,
+      shiftTypeId, startDate, baseSalary, phone, email,
+      createdBy: req.user.id,
     })
     res.status(201).json({ data: emp })
   } catch (err) { next(err) }
