@@ -1,6 +1,7 @@
 const { Pipeline }       = require('./Pipeline')
 const { createContext }  = require('./context')
 
+const loadSettings   = require('./pipeline/loadSettings')
 const loadEmployees  = require('./pipeline/loadEmployees')
 const loadSchedules  = require('./pipeline/loadSchedules')
 const loadNovelties  = require('./pipeline/loadNovelties')
@@ -16,6 +17,7 @@ class PayrollEngine {
 
   _buildPipeline() {
     return new Pipeline()
+      .pipe(loadSettings)
       .pipe(loadEmployees)
       .pipe(loadSchedules)
       .pipe(loadNovelties)

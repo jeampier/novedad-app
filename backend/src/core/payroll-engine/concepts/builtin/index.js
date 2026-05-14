@@ -8,5 +8,6 @@ registry
   .register(require('./nightHours'))
   .register(require('./surchargeHours'))
   .register(require('./sundayHolidayHours'))
+  .register(require('./auxTransporte'))
 
 module.exports = { registry }

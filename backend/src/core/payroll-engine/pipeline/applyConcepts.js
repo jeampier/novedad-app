@@ -12,7 +12,7 @@ async function applyConcepts(ctx) {
 
     // Run each built-in concept calculator
     for (const concept of builtins) {
-      const result = concept.calculate(emp, days)
+      const result = concept.calculate(emp, days, ctx.settings)
       concepts[concept.code] = {
         label:    concept.label,
         type:     concept.type,

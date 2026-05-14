@@ -6,6 +6,7 @@ function createContext({ periodId, userId, options = {} }) {
     options: { dryRun: false, ...options },
 
     // Data loaded by pipeline steps
+    settings:            {},
     period:              null,
     employees:           [],
     schedules:           [],
