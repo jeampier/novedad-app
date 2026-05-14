@@ -8,7 +8,8 @@
     "migrate:admin": "node src/db/migrate_admin.js",
     "migrate:payroll": "node src/db/migrate_payroll.js",
     "migrate:concepts": "node src/db/migrate_concepts.js",
-    "migrate:employees": "node src/db/migrate_employees.js"
+    "migrate:employees": "node src/db/migrate_employees.js",
+    "migrate:smmlv": "node src/db/migrate_smmlv.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

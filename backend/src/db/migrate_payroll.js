@@ -82,12 +82,25 @@ CREATE TABLE IF NOT EXISTS payroll_records (
   UNIQUE(period_id, employee_id)
 );
 
+CREATE TABLE IF NOT EXISTS payroll_settings (
+  key VARCHAR(60) PRIMARY KEY,
+  value NUMERIC(18,2) NOT NULL,
+  description TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_work_schedule_date ON work_schedule(schedule_date);
 CREATE INDEX IF NOT EXISTS idx_work_schedule_employee ON work_schedule(employee_id);
 CREATE INDEX IF NOT EXISTS idx_payroll_records_period ON payroll_records(period_id);
 `
 
 async function seed() {
+  await pool.query(`
+    INSERT INTO payroll_settings (key, value, description)
+    VALUES ('smmlv', 1300000, 'Salario Mínimo Mensual Legal Vigente')
+    ON CONFLICT DO NOTHING
+  `)
+
   await pool.query(`
     INSERT INTO permissions (module, action)
     VALUES

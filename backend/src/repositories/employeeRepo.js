@@ -5,13 +5,13 @@ const employeeRepo = {
     const { rows } = await query(
       `INSERT INTO employees
          (first_name, last_name, document_type, document, position, area, group_name,
-          start_date, shift_type_id, base_salary, phone, email, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+          start_date, shift_type_id, base_salary, smmlv, phone, email, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [
         d.firstName, d.lastName || '', d.documentType || 'CC',
         d.document, d.position, d.area || null, d.groupName || null,
         d.startDate || null, d.shiftTypeId || null, d.baseSalary || 0,
-        d.phone || null, d.email || null, d.createdBy,
+        d.smmlv || 0, d.phone || null, d.email || null, d.createdBy,
       ]
     )
     return rows[0]
@@ -29,14 +29,15 @@ const employeeRepo = {
          group_name    = $7,
          shift_type_id = $8,
          base_salary   = $9,
-         phone         = $10,
-         email         = $11
-       WHERE id = $12 RETURNING *`,
+         smmlv         = $10,
+         phone         = $11,
+         email         = $12
+       WHERE id = $13 RETURNING *`,
       [
         d.firstName, d.lastName || '', d.documentType || 'CC',
         d.document, d.position, d.area || null, d.groupName || null,
         d.shiftTypeId || null, d.baseSalary ?? 0,
-        d.phone || null, d.email || null, id,
+        d.smmlv ?? 0, d.phone || null, d.email || null, id,
       ]
     )
     return rows[0] || null

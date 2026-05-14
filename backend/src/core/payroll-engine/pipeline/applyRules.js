@@ -14,7 +14,7 @@ function buildVariables(result) {
     surcharge_hours:      hours.surcharge,
     sunday_holiday_hours: hours.sundayHoliday,
     hourly_rate:          result.hourlyRate,
-    smmlv:                1300000, // TODO: load from payroll_settings
+    smmlv:                Number(employee.smmlv) || 1300000,
   }
 }
 

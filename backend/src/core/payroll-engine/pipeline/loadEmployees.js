@@ -2,7 +2,7 @@ const { query } = require('../../../db/client')
 
 async function loadEmployees(ctx) {
   const { rows } = await query(`
-    SELECT id, name, document, position, group_name, area, base_salary, shift
+    SELECT id, name, document, position, group_name, area, base_salary, smmlv, shift
     FROM employees
     WHERE status = 'active'
     ORDER BY name

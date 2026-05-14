@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const mainModules = [
@@ -69,10 +70,30 @@ const adminModules = [
   { path: '/admin/audit',   label: 'Auditoría' },
 ]
 
+function ChevronIcon({ open }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-3.5 h-3.5 transition-transform duration-200"
+      style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin')
+
+  const inPayroll = location.pathname.startsWith('/payroll')
+  const inAdmin   = location.pathname.startsWith('/admin')
+
+  const [payrollOpen, setPayrollOpen] = useState(inPayroll)
+  const [adminOpen,   setAdminOpen]   = useState(inAdmin)
+
+  useEffect(() => { if (inPayroll) setPayrollOpen(true) }, [inPayroll])
+  useEffect(() => { if (inAdmin)   setAdminOpen(true)   }, [inAdmin])
 
   function handleLogout() { logout(); navigate('/login') }
 
@@ -114,39 +135,53 @@ export default function Layout({ children }) {
           ))}
 
           {/* Sección Nómina */}
-          <>
-            <div className="mt-4 mb-2 px-4">
-              <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Nómina</p>
-            </div>
-            {payrollModules.map(m => (
-              <NavLink key={m.path} to={m.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
-                  (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
-                }>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                {m.label}
-              </NavLink>
-            ))}
-          </>
+          <div className="mt-4">
+            <button
+              onClick={() => setPayrollOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-2 rounded-xl text-xs font-semibold text-indigo-400 uppercase tracking-widest hover:bg-white/5 transition-all duration-200 cursor-pointer border-0 bg-transparent">
+              Nómina
+              <ChevronIcon open={payrollOpen} />
+            </button>
+            {payrollOpen && (
+              <div className="mt-1 flex flex-col gap-1">
+                {payrollModules.map(m => (
+                  <NavLink key={m.path} to={m.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
+                      (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
+                    }>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    {m.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Sección Administración */}
           {isAdmin && (
-            <>
-              <div className="mt-4 mb-2 px-4">
-                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Administración</p>
-              </div>
-              {adminModules.map(m => (
-                <NavLink key={m.path} to={m.path} end={m.path === '/admin'}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
-                    (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
-                  }>
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                  {m.label}
-                </NavLink>
-              ))}
-            </>
+            <div className="mt-4">
+              <button
+                onClick={() => setAdminOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-2 rounded-xl text-xs font-semibold text-indigo-400 uppercase tracking-widest hover:bg-white/5 transition-all duration-200 cursor-pointer border-0 bg-transparent">
+                Administración
+                <ChevronIcon open={adminOpen} />
+              </button>
+              {adminOpen && (
+                <div className="mt-1 flex flex-col gap-1">
+                  {adminModules.map(m => (
+                    <NavLink key={m.path} to={m.path} end={m.path === '/admin'}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ` +
+                        (isActive ? 'bg-white/15 text-white shadow-sm' : 'text-indigo-300 hover:bg-white/8 hover:text-white')
+                      }>
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                      {m.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </nav>
 

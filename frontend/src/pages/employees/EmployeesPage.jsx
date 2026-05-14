@@ -16,7 +16,7 @@ const DOC_TYPES = [
 const EMPTY = {
   firstName: '', lastName: '', documentType: 'CC', document: '',
   position: '', area: '', groupName: '', shiftTypeId: '',
-  startDate: '', baseSalary: '', phone: '', email: '',
+  startDate: '', baseSalary: '', smmlv: '', phone: '', email: '',
 }
 
 function initials(emp) {
@@ -92,6 +92,7 @@ export default function EmployeesPage() {
       shiftTypeId:  emp.shift_type_id ? String(emp.shift_type_id) : '',
       startDate:    emp.start_date?.slice(0, 10) || '',
       baseSalary:   emp.base_salary || '',
+      smmlv:        emp.smmlv       || '',
       phone:        emp.phone       || '',
       email:        emp.email       || '',
     })
@@ -108,6 +109,7 @@ export default function EmployeesPage() {
         ...form,
         shiftTypeId: form.shiftTypeId ? Number(form.shiftTypeId) : null,
         baseSalary:  form.baseSalary  ? Number(form.baseSalary)  : 0,
+        smmlv:       form.smmlv       ? Number(form.smmlv)       : 0,
       }
       if (modal === 'create') await api.create(payload)
       else                    await api.update(modal.id, payload)
@@ -302,6 +304,10 @@ export default function EmployeesPage() {
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">Salario base</label>
                   <input className={inp} type="number" placeholder="0" {...fld('baseSalary')} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">SMMLV aplicable</label>
+                  <input className={inp} type="number" placeholder="1300000" {...fld('smmlv')} />
                 </div>
               </div>
             </div>
