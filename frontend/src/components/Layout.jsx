@@ -61,6 +61,7 @@ const payrollModules = [
   { path: '/payroll/shift-types', label: 'Tipos de turno' },
   { path: '/payroll/periods',     label: 'Períodos' },
   { path: '/payroll/records',     label: 'Consolidado' },
+  { path: '/payroll/settings',    label: 'Parámetros' },
 ]
 
 const adminModules = [

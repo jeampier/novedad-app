@@ -15,9 +15,9 @@ module.exports = {
     const smmlv       = Number(employee.smmlv)       || 0
     const auxMensual  = Number(settings.aux_trans)   || 0
 
-    // No aplica si no hay smmlv configurado, si el salario supera el límite, o si no hay valor
-    if (!smmlv || !auxMensual || baseSalary > 2 * smmlv) {
-      return { value: 0, hours: null, breakdown: { applies: false, reason: baseSalary > 2 * smmlv ? 'IBC supera 2×SMMLV' : 'Sin configuración' } }
+    const limite = Number(settings.limite_aux_trans) || 2
+    if (!smmlv || !auxMensual || baseSalary > limite * smmlv) {
+      return { value: 0, hours: null, breakdown: { applies: false, reason: baseSalary > limite * smmlv ? `IBC supera ${limite}×SMMLV` : 'Sin configuración' } }
     }
 
     // Días liquidados: trabajados + incapacidad + licencia remunerada

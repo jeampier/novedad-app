@@ -3,10 +3,13 @@ import { shiftTypes as api } from '../../api/payroll'
 
 const EMPTY = {
   name: '', code: '', startTime: '', endTime: '',
-  totalHours: '', ordinaryHours: '', extraHours: '', nightHours: '',
-  surchargeHours: '', sundayHolidayHours: '',
-  extraMultiplier: '1.25', nightMultiplier: '1.35',
-  surchargeMultiplier: '1.35', sundayHolidayMultiplier: '1.75',
+  totalHours: '', ordinaryHours: '',
+  extraHours: '', extraDiurDomHours: '', extraNoctHours: '', extraNoctDomHours: '',
+  nightHours: '', surchargeHours: '', sundayHolidayHours: '', recDomNoctHours: '',
+  extraMultiplier: '1.25', extraDiurDomMultiplier: '1.75',
+  extraNoctMultiplier: '1.75', extraNoctDomMultiplier: '2.10',
+  nightMultiplier: '1.35', surchargeMultiplier: '1.35',
+  sundayHolidayMultiplier: '1.75', recDomNoctMultiplier: '2.10',
   color: '#3B82F6', active: true,
 }
 
@@ -61,10 +64,14 @@ export default function ShiftTypesPage() {
       name: st.name, code: st.code,
       startTime: st.start_time || '', endTime: st.end_time || '',
       totalHours: st.total_hours, ordinaryHours: st.ordinary_hours,
-      extraHours: st.extra_hours, nightHours: st.night_hours,
-      surchargeHours: st.surcharge_hours, sundayHolidayHours: st.sunday_holiday_hours,
-      extraMultiplier: st.extra_multiplier, nightMultiplier: st.night_multiplier,
-      surchargeMultiplier: st.surcharge_multiplier, sundayHolidayMultiplier: st.sunday_holiday_multiplier,
+      extraHours: st.extra_hours, extraDiurDomHours: st.extra_diur_dom_hours ?? 0,
+      extraNoctHours: st.extra_noct_hours ?? 0, extraNoctDomHours: st.extra_noct_dom_hours ?? 0,
+      nightHours: st.night_hours, surchargeHours: st.surcharge_hours,
+      sundayHolidayHours: st.sunday_holiday_hours, recDomNoctHours: st.rec_dom_noct_hours ?? 0,
+      extraMultiplier: st.extra_multiplier, extraDiurDomMultiplier: st.extra_diur_dom_multiplier ?? 1.75,
+      extraNoctMultiplier: st.extra_noct_multiplier ?? 1.75, extraNoctDomMultiplier: st.extra_noct_dom_multiplier ?? 2.10,
+      nightMultiplier: st.night_multiplier, surchargeMultiplier: st.surcharge_multiplier,
+      sundayHolidayMultiplier: st.sunday_holiday_multiplier, recDomNoctMultiplier: st.rec_dom_noct_multiplier ?? 2.10,
       color: st.color || '#3B82F6', active: st.active,
     })
     setError(''); setModal('form')
@@ -139,13 +146,17 @@ export default function ShiftTypesPage() {
 
               <div className="grid grid-cols-3 gap-2 mb-3">
                 {[
-                  { label: 'Ordinarias', val: st.ordinary_hours },
-                  { label: 'Extras',     val: st.extra_hours },
-                  { label: 'Nocturnas',  val: st.night_hours },
-                  { label: 'Recargos',   val: st.surcharge_hours },
-                  { label: 'Dom/Fest',   val: st.sunday_holiday_hours },
-                  { label: 'Total',      val: st.total_hours, bold: true },
-                ].map(({ label, val, bold }) => (
+                  { label: 'Ord.',           val: st.ordinary_hours },
+                  { label: 'Ext. diur.',     val: st.extra_hours },
+                  { label: 'Ext. d.dom.',    val: st.extra_diur_dom_hours ?? 0 },
+                  { label: 'Ext. noct.',     val: st.extra_noct_hours ?? 0 },
+                  { label: 'Ext. n.dom.',    val: st.extra_noct_dom_hours ?? 0 },
+                  { label: 'Rec. noct.',     val: st.night_hours },
+                  { label: 'Rec. gral.',     val: st.surcharge_hours },
+                  { label: 'Rec. dom.',      val: st.sunday_holiday_hours },
+                  { label: 'Rec. d.noct.',   val: st.rec_dom_noct_hours ?? 0 },
+                  { label: 'Total',          val: st.total_hours, bold: true },
+                ].filter(r => r.bold || Number(r.val) > 0).map(({ label, val, bold }) => (
                   <div key={label} className="text-center">
                     <p className={`text-sm ${bold ? 'font-bold text-gray-800' : 'font-medium text-gray-700'}`}>{val}</p>
                     <p className="text-[10px] text-gray-400">{label}</p>
@@ -195,12 +206,16 @@ export default function ShiftTypesPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Distribución de horas</p>
               <div className="grid grid-cols-3 gap-3">
-                <HourField label="Total"          name="totalHours"         value={form.totalHours}         onChange={change('totalHours')} />
-                <HourField label="Ordinarias"     name="ordinaryHours"      value={form.ordinaryHours}      onChange={change('ordinaryHours')} />
-                <HourField label="Extras"         name="extraHours"         value={form.extraHours}         onChange={change('extraHours')} />
-                <HourField label="Nocturnas"      name="nightHours"         value={form.nightHours}         onChange={change('nightHours')} />
-                <HourField label="Recargos"       name="surchargeHours"     value={form.surchargeHours}     onChange={change('surchargeHours')} />
-                <HourField label="Dom/Festivos"   name="sundayHolidayHours" value={form.sundayHolidayHours} onChange={change('sundayHolidayHours')} />
+                <HourField label="Total"               name="totalHours"          value={form.totalHours}          onChange={change('totalHours')} />
+                <HourField label="Ordinarias"           name="ordinaryHours"       value={form.ordinaryHours}       onChange={change('ordinaryHours')} />
+                <HourField label="Extra diurna"         name="extraHours"          value={form.extraHours}          onChange={change('extraHours')} />
+                <HourField label="Extra diurna dom."    name="extraDiurDomHours"   value={form.extraDiurDomHours}   onChange={change('extraDiurDomHours')} />
+                <HourField label="Extra nocturna"       name="extraNoctHours"      value={form.extraNoctHours}      onChange={change('extraNoctHours')} />
+                <HourField label="Extra noct. dom."     name="extraNoctDomHours"   value={form.extraNoctDomHours}   onChange={change('extraNoctDomHours')} />
+                <HourField label="Rec. nocturno"        name="nightHours"          value={form.nightHours}          onChange={change('nightHours')} />
+                <HourField label="Rec. general"         name="surchargeHours"      value={form.surchargeHours}      onChange={change('surchargeHours')} />
+                <HourField label="Rec. dom. diurno"     name="sundayHolidayHours"  value={form.sundayHolidayHours}  onChange={change('sundayHolidayHours')} />
+                <HourField label="Rec. dom. nocturno"   name="recDomNoctHours"     value={form.recDomNoctHours}     onChange={change('recDomNoctHours')} />
               </div>
             </div>
 
@@ -209,14 +224,18 @@ export default function ShiftTypesPage() {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Multiplicadores de pago</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  ['Extra', 'extraMultiplier'],
-                  ['Nocturno', 'nightMultiplier'],
-                  ['Recargo', 'surchargeMultiplier'],
-                  ['Dom/Festivo', 'sundayHolidayMultiplier'],
+                  ['Extra diurna ×',       'extraMultiplier'],
+                  ['Extra diurna dom. ×',  'extraDiurDomMultiplier'],
+                  ['Extra nocturna ×',     'extraNoctMultiplier'],
+                  ['Extra noct. dom. ×',   'extraNoctDomMultiplier'],
+                  ['Rec. nocturno ×',      'nightMultiplier'],
+                  ['Rec. general ×',       'surchargeMultiplier'],
+                  ['Rec. dom. diurno ×',   'sundayHolidayMultiplier'],
+                  ['Rec. dom. noct. ×',    'recDomNoctMultiplier'],
                 ].map(([label, key]) => (
                   <div key={key}>
                     <label className="text-xs text-gray-500 mb-1 block">{label}</label>
-                    <input className={inp} type="number" step="0.01" min="1"
+                    <input className={inp} type="number" step="0.01" min="0"
                       value={form[key]} onChange={change(key)} />
                   </div>
                 ))}

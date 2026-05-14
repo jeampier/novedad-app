@@ -15,7 +15,8 @@ import ConceptsPage    from './pages/payroll/concepts/ConceptsPage'
 import SchedulePage    from './pages/payroll/SchedulePage'
 import ShiftTypesPage  from './pages/payroll/ShiftTypesPage'
 import PeriodsPage     from './pages/payroll/PeriodsPage'
-import RecordsPage     from './pages/payroll/RecordsPage'
+import RecordsPage          from './pages/payroll/RecordsPage'
+import PayrollSettingsPage  from './pages/payroll/PayrollSettingsPage'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -45,7 +46,8 @@ export default function App() {
           <Route path="/payroll/schedule"     element={<PrivateRoute><SchedulePage /></PrivateRoute>} />
           <Route path="/payroll/shift-types"  element={<PrivateRoute><ShiftTypesPage /></PrivateRoute>} />
           <Route path="/payroll/periods"      element={<PrivateRoute><PeriodsPage /></PrivateRoute>} />
-          <Route path="/payroll/records"      element={<PrivateRoute><RecordsPage /></PrivateRoute>} />
+          <Route path="/payroll/records"       element={<PrivateRoute><RecordsPage /></PrivateRoute>} />
+          <Route path="/payroll/settings"      element={<PrivateRoute><PayrollSettingsPage /></PrivateRoute>} />
           <Route path="/admin"                element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/admin/users"          element={<AdminRoute><UsersPage /></AdminRoute>} />
           <Route path="/admin/roles"          element={<AdminRoute><RolesPage /></AdminRoute>} />

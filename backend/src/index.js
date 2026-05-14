@@ -21,6 +21,7 @@ const payrollPeriods    = require('./routes/payroll/periods')
 const payrollCalculate  = require('./routes/payroll/calculate')
 const payrollRecords    = require('./routes/payroll/records')
 const payrollExport     = require('./routes/payroll/export')
+const payrollSettings   = require('./routes/payroll/settings')
 
 const app = express()
 app.use(cors({
@@ -52,6 +53,7 @@ app.use('/api/payroll/periods',     payrollPeriods)
 app.use('/api/payroll/calculate',   payrollCalculate)
 app.use('/api/payroll/records',     payrollRecords)
 app.use('/api/payroll/export',      payrollExport)
+app.use('/api/payroll/settings',    payrollSettings)
 
 app.use((err, req, res, next) => {
   console.error(err.message)

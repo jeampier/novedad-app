@@ -37,9 +37,13 @@ async function applyConcepts(ctx) {
       hours: {
         ordinary:     agg.ordinary,
         extra:        agg.extra,
+        extraDiurDom: agg.extraDiurDom,
+        extraNoct:    agg.extraNoct,
+        extraNoctDom: agg.extraNoctDom,
         night:        agg.night,
         surcharge:    agg.surcharge,
         sundayHoliday:agg.sundayHoliday,
+        recDomNoct:   agg.recDomNoct,
       },
       hourlyRate: agg.hourlyRate,
       concepts,

@@ -11,8 +11,9 @@ const workScheduleRepo = {
          ws.id, ws.schedule_date, ws.is_rest_day, ws.absence_type, ws.notes,
          st.id AS shift_type_id, st.code AS shift_code,
          st.name AS shift_name, st.color AS shift_color,
-         st.ordinary_hours, st.extra_hours, st.night_hours,
-         st.surcharge_hours, st.sunday_holiday_hours
+         st.ordinary_hours, st.extra_hours, st.extra_diur_dom_hours,
+         st.extra_noct_hours, st.extra_noct_dom_hours,
+         st.night_hours, st.surcharge_hours, st.sunday_holiday_hours, st.rec_dom_noct_hours
        FROM employees e
        LEFT JOIN work_schedule ws
          ON ws.employee_id = e.id
@@ -78,10 +79,13 @@ const workScheduleRepo = {
   async findForPeriod(startDate, endDate) {
     const { rows } = await query(
       `SELECT ws.*, e.base_salary, e.name AS employee_name,
-              st.ordinary_hours, st.extra_hours, st.night_hours,
-              st.surcharge_hours, st.sunday_holiday_hours,
-              st.extra_multiplier, st.night_multiplier,
-              st.surcharge_multiplier, st.sunday_holiday_multiplier
+              st.ordinary_hours, st.extra_hours, st.extra_diur_dom_hours,
+              st.extra_noct_hours, st.extra_noct_dom_hours,
+              st.night_hours, st.surcharge_hours, st.sunday_holiday_hours, st.rec_dom_noct_hours,
+              st.extra_multiplier, st.extra_diur_dom_multiplier,
+              st.extra_noct_multiplier, st.extra_noct_dom_multiplier,
+              st.night_multiplier, st.surcharge_multiplier,
+              st.sunday_holiday_multiplier, st.rec_dom_noct_multiplier
        FROM work_schedule ws
        JOIN employees e ON e.id = ws.employee_id
        LEFT JOIN shift_types st ON st.id = ws.shift_type_id
