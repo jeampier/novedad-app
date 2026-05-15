@@ -11,7 +11,8 @@
     "migrate:employees": "node src/db/migrate_employees.js",
     "migrate:smmlv": "node src/db/migrate_smmlv.js",
     "seed:settings": "node src/db/seed_settings.js",
-    "migrate:hours": "node src/db/migrate_hour_categories.js"
+    "migrate:hours": "node src/db/migrate_hour_categories.js",
+    "migrate:absence-types": "node src/db/migrate_absence_types.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

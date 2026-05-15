@@ -54,6 +54,13 @@ export const payrollSettings = {
   update: (key, val) => http.put(`/payroll/settings/${key}`, { value: val }).then(r => r.data.data),
 }
 
+export const absenceTypes = {
+  list:   ()        => http.get('/payroll/absence-types').then(r => r.data.data),
+  create: (d)       => http.post('/payroll/absence-types', d).then(r => r.data.data),
+  update: (id, d)   => http.put(`/payroll/absence-types/${id}`, d).then(r => r.data.data),
+  remove: (id)      => http.delete(`/payroll/absence-types/${id}`),
+}
+
 export const employees = {
   list:      ()         => http.get('/employees').then(r => r.data.data),
   get:       (id)       => http.get(`/employees/${id}`).then(r => r.data.data),

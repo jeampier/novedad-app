@@ -25,28 +25,26 @@ async function calculateTotals(ctx) {
     // Extras, recargos and aux transporte excluded — same as Excel basicoQ
     const basicoPay = concepts['HORAS_ORD']?.value ?? 0
 
-    // Check if dynamic deduction concepts were configured (they take full control)
-    let dynamicDeductionTotal = 0
-    for (const c of Object.values(concepts)) {
-      if (c.type === 'deduction') dynamicDeductionTotal += c.value
+    // Security social — always calculated from ordinary salary
+    const health    = Math.round(basicoPay * healthRate)
+    const pension   = Math.round(basicoPay * pensionRate)
+    let solidarity  = 0
+    const smmlv     = Number(emp.smmlv) || 0
+    if (smmlv > 0 && Number(emp.base_salary) > solidarityLimit * smmlv) {
+      solidarity = Math.round(basicoPay * solidarityRate)
     }
 
-    let health = 0, pension = 0, solidarity = 0
-
-    if (dynamicDeductionTotal > 0) {
-      health  = dynamicDeductionTotal
-      pension = 0
-    } else {
-      health  = Math.round(basicoPay * healthRate)
-      pension = Math.round(basicoPay * pensionRate)
-
-      const smmlv = Number(emp.smmlv) || 0
-      if (smmlv > 0 && Number(emp.base_salary) > solidarityLimit * smmlv) {
-        solidarity = Math.round(basicoPay * solidarityRate)
+    // Concept deductions (absence deductions, custom deduction concepts) — additive
+    let conceptDeductionTotal  = 0
+    const conceptDeductionDetail = []
+    for (const [code, c] of Object.entries(concepts)) {
+      if (c.type === 'deduction') {
+        conceptDeductionTotal += c.value
+        conceptDeductionDetail.push({ code, label: c.label, value: c.value, breakdown: c.breakdown || [] })
       }
     }
 
-    const deductions = health + pension + solidarity
+    const deductions = health + pension + solidarity + conceptDeductionTotal
     const netPay     = grossPay - deductions
 
     result.grossPay   = Math.round(grossPay)
@@ -54,10 +52,12 @@ async function calculateTotals(ctx) {
     result.netPay     = Math.round(netPay)
 
     result.deductionDetail = {
-      base:          basicoPay,
-      health,        healthRate,
-      pension,       pensionRate,
-      solidarity,    solidarityRate,
+      base:                 basicoPay,
+      health,               healthRate,
+      pension,              pensionRate,
+      solidarity,           solidarityRate,
+      conceptDeductionTotal,
+      conceptDeductionDetail,
     }
 
     totalGross += result.grossPay

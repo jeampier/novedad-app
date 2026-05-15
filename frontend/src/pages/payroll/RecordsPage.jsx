@@ -57,6 +57,7 @@ function DetailModal({ record, period, onClose }) {
   const healthRate      = dd(record, 'healthRate')    || 0.04
   const pensionRate     = dd(record, 'pensionRate')   || 0.04
   const solidarityRate  = dd(record, 'solidarityRate')|| 0.01
+  const conceptDedDetail = d.deductionDetail?.conceptDeductionDetail || []
   const pct = r => `${(r * 100).toFixed(1)}%`
 
   const earningRows = EARNING_CONCEPTS
@@ -171,6 +172,21 @@ function DetailModal({ record, period, onClose }) {
                       <td className="px-3 py-2 text-right font-medium text-red-600">{fmtM(solidarity)}</td>
                     </tr>
                   )}
+                  {conceptDedDetail.map(cd => (
+                    <tr key={cd.code}>
+                      <td className="px-3 py-2 text-gray-700">
+                        {cd.label}
+                        {cd.breakdown?.length > 0 && (
+                          <span className="ml-2 text-[10px] text-gray-400">
+                            ({cd.breakdown.map(b => `${b.days}d ${b.name} ${(b.pct*100).toFixed(0)}%`).join(', ')})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right font-medium text-red-600">{fmtM(cd.value)}</td>
+                    </tr>
+                  ))}
                 </tbody>
                 <tfoot className="bg-gray-50 border-t border-gray-100">
                   <tr>

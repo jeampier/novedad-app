@@ -24,6 +24,40 @@ async function applyConcepts(ctx) {
       }
     }
 
+    // Absence deductions — one entry per absence type configured with deduction_pct > 0
+    const absenceTypesMap = ctx.absenceTypesMap || {}
+    const dailyRate       = Number(emp.base_salary) / 30
+    const daysByType      = {}
+    for (const day of days) {
+      if (day.absence_type && !day.is_rest_day) {
+        daysByType[day.absence_type] = (daysByType[day.absence_type] || 0) + 1
+      }
+    }
+
+    let absenceDeductionTotal = 0
+    const absenceBreakdown    = []
+    for (const [code, daysCount] of Object.entries(daysByType)) {
+      const cfg = absenceTypesMap[code]
+      if (!cfg) continue
+      const pct   = Number(cfg.deduction_pct)
+      if (pct <= 0) continue
+      const value = Math.round(daysCount * dailyRate * pct)
+      absenceDeductionTotal += value
+      absenceBreakdown.push({ type: code, name: cfg.name, days: daysCount, pct, value })
+    }
+
+    if (absenceDeductionTotal > 0) {
+      concepts['DESC_AUSENCIA'] = {
+        label:     'Descuento por ausencias',
+        type:      'deduction',
+        category:  'absence',
+        builtin:   true,
+        value:     absenceDeductionTotal,
+        hours:     null,
+        breakdown: absenceBreakdown,
+      }
+    }
+
     ctx.employeeResults[emp.id] = {
       employee:      emp,
       days,

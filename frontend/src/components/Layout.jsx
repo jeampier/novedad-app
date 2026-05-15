@@ -56,12 +56,13 @@ const mainModules = [
 ]
 
 const payrollModules = [
-  { path: '/payroll/concepts',    label: 'Conceptos' },
-  { path: '/payroll/schedule',    label: 'Programación' },
-  { path: '/payroll/shift-types', label: 'Tipos de turno' },
-  { path: '/payroll/periods',     label: 'Períodos' },
-  { path: '/payroll/records',     label: 'Consolidado' },
-  { path: '/payroll/settings',    label: 'Parámetros' },
+  { path: '/payroll/concepts',      label: 'Conceptos' },
+  { path: '/payroll/schedule',      label: 'Programación' },
+  { path: '/payroll/shift-types',   label: 'Tipos de turno' },
+  { path: '/payroll/absence-types', label: 'Tipos de ausencia' },
+  { path: '/payroll/periods',       label: 'Períodos' },
+  { path: '/payroll/records',       label: 'Consolidado' },
+  { path: '/payroll/settings',      label: 'Parámetros' },
 ]
 
 const adminModules = [
