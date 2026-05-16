@@ -23,6 +23,9 @@ const payrollRecords    = require('./routes/payroll/records')
 const payrollExport     = require('./routes/payroll/export')
 const payrollSettings      = require('./routes/payroll/settings')
 const payrollAbsenceTypes  = require('./routes/payroll/absenceTypes')
+const payrollScheduleImport   = require('./routes/payroll/scheduleImport')
+const absenceCodeCatalog      = require('./routes/payroll/absenceCodeCatalog')
+const dashboardRoutes         = require('./routes/dashboard')
 
 const app = express()
 app.use(cors({
@@ -35,6 +38,7 @@ app.use(cors({
 app.use(express.json())
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
+app.use('/api/dashboard', dashboardRoutes)
 
 app.use('/api/auth',           authRoutes)
 app.use('/api/commands',       commandRoutes)
@@ -56,6 +60,8 @@ app.use('/api/payroll/records',     payrollRecords)
 app.use('/api/payroll/export',      payrollExport)
 app.use('/api/payroll/settings',       payrollSettings)
 app.use('/api/payroll/absence-types',  payrollAbsenceTypes)
+app.use('/api/payroll/periods',              payrollScheduleImport)
+app.use('/api/payroll/absence-code-catalog', absenceCodeCatalog)
 
 app.use((err, req, res, next) => {
   console.error(err.message)

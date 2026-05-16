@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { absenceTypes as api } from '../../api/payroll'
+import { absenceTypes as api, absenceCodeCatalog as catalogApi } from '../../api/payroll'
 import { useAuth } from '../../context/AuthContext'
 
 const pctToDisplay = v => (Number(v) * 100).toFixed(0)
@@ -23,9 +23,12 @@ function TypeModal({ initial, onSave, onClose }) {
     deduction_pct: initial ? pctToDisplay(initial.deduction_pct) : '0',
     active:        initial?.active        ?? true,
   })
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState('')
+  const [catalog, setCatalog] = useState([])
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
   const isEdit = !!initial
+
+  useEffect(() => { catalogApi.list().then(setCatalog).catch(() => {}) }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -56,13 +59,21 @@ function TypeModal({ initial, onSave, onClose }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Código</label>
-              <input
-                value={form.code} onChange={e => set('code', e.target.value)}
-                disabled={isEdit}
-                placeholder="ausencia_injustificada"
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-50 disabled:text-gray-400 transition-all"
-              />
-              {isEdit && <p className="text-[10px] text-gray-400 mt-1">El código no se puede cambiar</p>}
+              {isEdit ? (
+                <>
+                  <input value={form.code} disabled
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-400 bg-gray-50" />
+                  <p className="text-[10px] text-gray-400 mt-1">El código no se puede cambiar</p>
+                </>
+              ) : (
+                <select value={form.code} onChange={e => set('code', e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-white">
+                  <option value="">— Selecciona un código —</option>
+                  {catalog.map(c => (
+                    <option key={c.id} value={c.code}>{c.code} {c.description ? `· ${c.description}` : ''}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Descuento por día (%)</label>

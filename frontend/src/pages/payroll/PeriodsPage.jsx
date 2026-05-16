@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { periods as api, payroll as payrollApi } from '../../api/payroll'
 
 const inp = "w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -33,6 +34,7 @@ function fmt(d) {
 }
 
 export default function PeriodsPage() {
+  const navigate = useNavigate()
   const [list, setList]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(false)
@@ -42,6 +44,11 @@ export default function PeriodsPage() {
   const [calculating, setCalculating] = useState(null)
   const [calcMsg, setCalcMsg]   = useState('')
   const [exporting, setExporting] = useState(null)
+  const [importModal, setImportModal] = useState(null)
+  const [importFile, setImportFile]   = useState(null)
+  const [importing, setImporting]     = useState(false)
+  const [importResult, setImportResult] = useState(null)
+  const [importError, setImportError]   = useState('')
 
   const load = () => {
     setLoading(true)
@@ -81,6 +88,27 @@ export default function PeriodsPage() {
     try { await payrollApi.export(p.id, format) }
     catch { /* error silencioso - el navegador abre la descarga */ }
     setExporting(null)
+  }
+
+  function openImport(p) {
+    setImportModal(p)
+    setImportFile(null)
+    setImportResult(null)
+    setImportError('')
+  }
+
+  async function handleImport() {
+    if (!importFile) { setImportError('Selecciona un archivo .xlsx'); return }
+    setImporting(true); setImportError(''); setImportResult(null)
+    try {
+      const result = await api.importSchedule(importModal.id, importFile)
+      setImportResult(result)
+      setImportFile(null)
+    } catch (e) {
+      setImportError(e.response?.data?.error || 'Error al importar')
+    } finally {
+      setImporting(false)
+    }
   }
 
   const fld = k => ({ value: form[k], onChange: e => setForm(f => ({...f, [k]: e.target.value})) })
@@ -149,6 +177,16 @@ export default function PeriodsPage() {
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium cursor-pointer border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100 transition-all disabled:opacity-50">
                     {exporting === `${p.id}_csv` ? '...' : 'CSV'}
                   </button>
+                  <button onClick={() => navigate(`/payroll/periods/${p.id}/schedule`)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium cursor-pointer border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Ver cuadro
+                  </button>
+                  <button onClick={() => openImport(p)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium cursor-pointer border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Importar descansos
+                  </button>
                   <button onClick={() => toggleStatus(p)}
                     className={`px-3 py-2 rounded-xl text-xs font-medium cursor-pointer border transition-all ${p.status === 'open' ? 'border-red-200 text-red-600 bg-red-50 hover:bg-red-100' : 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'}`}>
                     {p.status === 'open' ? 'Cerrar' : 'Reabrir'}
@@ -158,6 +196,55 @@ export default function PeriodsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {importModal && (
+        <Modal title={`Importar descansos — ${importModal.name}`} onClose={() => setImportModal(null)}>
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-gray-500">
+              Selecciona el cuadro de descansos en formato <strong>.xlsx</strong>. Se importarán los días del período <strong>{fmt(importModal.start_date)} — {fmt(importModal.end_date)}</strong>.
+            </p>
+
+            {!importResult ? (
+              <>
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all ${importFile ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className={`w-8 h-8 ${importFile ? 'text-indigo-500' : 'text-gray-300'}`}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span className="text-xs text-gray-500 text-center">
+                    {importFile ? importFile.name : 'Haz clic para seleccionar el archivo .xlsx'}
+                  </span>
+                  <input type="file" accept=".xlsx" className="hidden" onChange={e => { setImportFile(e.target.files[0]); setImportError('') }} />
+                </label>
+                {importError && <p className="text-red-500 text-xs">{importError}</p>}
+                <button onClick={handleImport} disabled={importing || !importFile}
+                  className="w-full py-3 rounded-xl text-white text-sm font-medium cursor-pointer border-0 disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#02005B,#0d0080)' }}>
+                  {importing ? 'Importando...' : 'Importar'}
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-green-700">Importación completada</p>
+                  <p className="text-xs text-green-600 mt-1">{importResult.recordsUpserted} registros importados para {importResult.period}</p>
+                </div>
+                {importResult.unmatchedEmployees?.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Empleados no encontrados ({importResult.unmatchedEmployees.length})</p>
+                    <ul className="text-xs text-amber-600 space-y-0.5 max-h-32 overflow-y-auto">
+                      {importResult.unmatchedEmployees.map((n, i) => <li key={i}>• {n}</li>)}
+                    </ul>
+                  </div>
+                )}
+                <button onClick={() => setImportModal(null)}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium cursor-pointer border border-gray-200 text-gray-600 hover:bg-gray-50">
+                  Cerrar
+                </button>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {modal && (

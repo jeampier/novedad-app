@@ -1,5 +1,9 @@
 import http from './client'
 
+export const dashboard = {
+  summary: () => http.get('/dashboard/summary').then(r => r.data.data),
+}
+
 export const shiftTypes = {
   list:   ()       => http.get('/payroll/shift-types').then(r => r.data.data),
   create: (d)      => http.post('/payroll/shift-types', d).then(r => r.data.data),
@@ -21,11 +25,17 @@ export const holidays = {
 }
 
 export const periods = {
-  list:   ()    => http.get('/payroll/periods').then(r => r.data.data),
-  get:    (id)  => http.get(`/payroll/periods/${id}`).then(r => r.data.data),
-  create: (d)   => http.post('/payroll/periods', d).then(r => r.data.data),
-  close:  (id)  => http.patch(`/payroll/periods/${id}/close`).then(r => r.data.data),
-  reopen: (id)  => http.patch(`/payroll/periods/${id}/reopen`).then(r => r.data.data),
+  list:           ()        => http.get('/payroll/periods').then(r => r.data.data),
+  get:            (id)      => http.get(`/payroll/periods/${id}`).then(r => r.data.data),
+  create:         (d)       => http.post('/payroll/periods', d).then(r => r.data.data),
+  close:          (id)      => http.patch(`/payroll/periods/${id}/close`).then(r => r.data.data),
+  reopen:         (id)      => http.patch(`/payroll/periods/${id}/reopen`).then(r => r.data.data),
+  importSchedule: (id, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post(`/payroll/periods/${id}/import-schedule`, form).then(r => r.data.data)
+  },
+  scheduleGrid: (id) => http.get(`/payroll/periods/${id}/schedule-grid`).then(r => r.data.data),
 }
 
 export const payroll = {
@@ -59,6 +69,12 @@ export const absenceTypes = {
   create: (d)       => http.post('/payroll/absence-types', d).then(r => r.data.data),
   update: (id, d)   => http.put(`/payroll/absence-types/${id}`, d).then(r => r.data.data),
   remove: (id)      => http.delete(`/payroll/absence-types/${id}`),
+}
+
+export const absenceCodeCatalog = {
+  list:   ()   => http.get('/payroll/absence-code-catalog').then(r => r.data.data),
+  create: (d)  => http.post('/payroll/absence-code-catalog', d).then(r => r.data.data),
+  remove: (id) => http.delete(`/payroll/absence-code-catalog/${id}`),
 }
 
 export const employees = {

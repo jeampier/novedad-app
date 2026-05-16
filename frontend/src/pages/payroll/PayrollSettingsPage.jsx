@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { payrollSettings as api } from '../../api/payroll'
+import { payrollSettings as api, absenceCodeCatalog as catalogApi } from '../../api/payroll'
 import { useAuth } from '../../context/AuthContext'
 
 // Metadatos de cada parámetro: cómo mostrarlo y cómo interpretarlo
@@ -119,6 +119,112 @@ function SettingRow({ row, meta, onSave, isAdmin }) {
   )
 }
 
+function AbsenceCatalogSection({ isAdmin }) {
+  const [codes,    setCodes]    = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [newCode,  setNewCode]  = useState('')
+  const [newDesc,  setNewDesc]  = useState('')
+  const [adding,   setAdding]   = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [error,    setError]    = useState('')
+
+  function load() {
+    setLoading(true)
+    catalogApi.list().then(setCodes).finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  async function handleAdd() {
+    if (!newCode.trim()) { setError('El código es requerido'); return }
+    setAdding(true); setError('')
+    try {
+      await catalogApi.create({ code: newCode.trim(), description: newDesc.trim() })
+      setNewCode(''); setNewDesc(''); setShowForm(false); load()
+    } catch (e) {
+      setError(e.response?.data?.error || 'Error al agregar')
+    } finally { setAdding(false) }
+  }
+
+  async function handleDelete(id, code) {
+    if (!confirm(`¿Eliminar el código "${code}"?`)) return
+    await catalogApi.remove(id)
+    load()
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">Códigos de ausencia</p>
+          <p className="text-xs text-gray-400 mt-0.5">Catálogo de códigos válidos. Se usan como opciones al crear un tipo de ausencia.</p>
+        </div>
+        {isAdmin && (
+          <button onClick={() => { setShowForm(v => !v); setError('') }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium text-white cursor-pointer border-0"
+            style={{ background: 'linear-gradient(135deg,#02005B,#0d0080)' }}>
+            + Agregar
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="px-5 py-4 bg-indigo-50/50 border-b border-indigo-100 flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Código *</label>
+            <input value={newCode} onChange={e => setNewCode(e.target.value)}
+              placeholder="ej: licencia_maternidad"
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-indigo-400 w-48" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Descripción</label>
+            <input value={newDesc} onChange={e => setNewDesc(e.target.value)}
+              placeholder="Descripción breve"
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-indigo-400 w-64" />
+          </div>
+          <button onClick={handleAdd} disabled={adding}
+            className="px-4 py-2 rounded-xl text-sm font-medium text-white cursor-pointer border-0 disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg,#02005B,#0d0080)' }}>
+            {adding ? '...' : 'Guardar'}
+          </button>
+          {error && <p className="text-xs text-red-500 w-full">{error}</p>}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="py-8 text-center text-sm text-gray-400">Cargando...</div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+            <tr>
+              <th className="px-5 py-3 text-left font-medium">Código</th>
+              <th className="px-5 py-3 text-left font-medium">Descripción</th>
+              {isAdmin && <th className="px-5 py-3 w-16"/>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {codes.map(c => (
+              <tr key={c.id} className="hover:bg-gray-50/50">
+                <td className="px-5 py-3">
+                  <code className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg font-mono">{c.code}</code>
+                </td>
+                <td className="px-5 py-3 text-gray-500 text-xs">{c.description || '—'}</td>
+                {isAdmin && (
+                  <td className="px-5 py-3 text-center">
+                    <button onClick={() => handleDelete(c.id, c.code)}
+                      className="text-xs text-red-400 hover:text-red-600 cursor-pointer bg-transparent border-0">
+                      Eliminar
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export default function PayrollSettingsPage() {
   const { user } = useAuth()
   const isAdmin  = user?.role === 'admin' || user?.roles?.includes('admin')
@@ -183,6 +289,8 @@ export default function PayrollSettingsPage() {
               </div>
             )
           })}
+
+          <AbsenceCatalogSection isAdmin={isAdmin} />
 
           <p className="text-xs text-gray-400 px-1">
             Última actualización: {settings.length > 0
