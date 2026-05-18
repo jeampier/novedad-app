@@ -68,8 +68,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* KPIs — fila 1 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <KpiCard
           label="Empleados activos"
           value={loading ? '—' : summary?.activeEmployees ?? '—'}
@@ -94,6 +94,32 @@ export default function DashboardPage() {
           sub={p ? `${fmtDate(p.start_date)} — ${fmtDate(p.end_date)}` : undefined}
           color="#059669" bg="#ECFDF5"
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>}
+        />
+      </div>
+
+      {/* KPIs — fila 2 */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <KpiCard
+          label="Ausentes hoy"
+          value={loading ? '—' : summary?.absencesActiveToday ?? '—'}
+          sub="Ausencias vigentes al día de hoy"
+          color="#0E7490" bg="#ECFEFF"
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+        />
+        <KpiCard
+          label={`Días de ausencia (${monthName})`}
+          value={loading ? '—' : summary?.absenceDaysMonth ?? '—'}
+          sub="Total días acumulados este mes"
+          color="#7C3AED" bg="#F5F3FF"
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+        />
+        <KpiCard
+          label="Días sin accidentes"
+          value={loading ? '—' : summary?.daysSinceAccident === null ? 'Sin registro' : summary?.daysSinceAccident ?? '—'}
+          sub={summary?.daysSinceAccident === 0 ? 'Accidente hoy' : summary?.daysSinceAccident > 0 ? 'Días consecutivos seguros' : undefined}
+          color={summary?.daysSinceAccident === 0 ? '#DC2626' : '#059669'}
+          bg={summary?.daysSinceAccident === 0 ? '#FEF2F2' : '#ECFDF5'}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
         />
       </div>
 
