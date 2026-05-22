@@ -25,7 +25,9 @@ const payrollSettings      = require('./routes/payroll/settings')
 const payrollAbsenceTypes  = require('./routes/payroll/absenceTypes')
 const payrollScheduleImport   = require('./routes/payroll/scheduleImport')
 const absenceCodeCatalog      = require('./routes/payroll/absenceCodeCatalog')
+const payrollRateRules        = require('./routes/payroll/rateRules')
 const dashboardRoutes         = require('./routes/dashboard')
+const requestRoutes           = require('./routes/requests')
 
 const app = express()
 app.use(cors({
@@ -38,6 +40,13 @@ app.use(cors({
 app.use(express.json())
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
+
+app.get('/api/version', (_, res) => {
+  res.json({
+    version: process.env.APP_VERSION || '1.0.0',
+    notes: (process.env.APP_RELEASE_NOTES || '').split('|').filter(Boolean),
+  })
+})
 app.use('/api/dashboard', dashboardRoutes)
 
 app.use('/api/auth',           authRoutes)
@@ -62,6 +71,8 @@ app.use('/api/payroll/settings',       payrollSettings)
 app.use('/api/payroll/absence-types',  payrollAbsenceTypes)
 app.use('/api/payroll/periods',              payrollScheduleImport)
 app.use('/api/payroll/absence-code-catalog', absenceCodeCatalog)
+app.use('/api/requests', requestRoutes)
+app.use('/api/payroll/rate-rules',           payrollRateRules)
 
 app.use((err, req, res, next) => {
   console.error(err.message)

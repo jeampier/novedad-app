@@ -39,9 +39,10 @@ export const periods = {
 }
 
 export const payroll = {
-  calculate: (periodId) => http.post('/payroll/calculate', { periodId }).then(r => r.data),
-  records:   (periodId) => http.get('/payroll/records', { params: { period_id: periodId } }).then(r => r.data.data),
-  record:    (id)       => http.get(`/payroll/records/${id}`).then(r => r.data.data),
+  calculate:       (periodId)    => http.post('/payroll/calculate', { periodId }).then(r => r.data),
+  records:         (periodId)    => http.get('/payroll/records', { params: { period_id: periodId } }).then(r => r.data.data),
+  record:          (id)          => http.get(`/payroll/records/${id}`).then(r => r.data.data),
+  employeeHistory: (employeeId)  => http.get(`/payroll/records/employee/${employeeId}`).then(r => r.data.data),
   async export(periodId, format) {
     const ext = format === 'xlsx'
       ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -75,6 +76,13 @@ export const absenceCodeCatalog = {
   list:   ()   => http.get('/payroll/absence-code-catalog').then(r => r.data.data),
   create: (d)  => http.post('/payroll/absence-code-catalog', d).then(r => r.data.data),
   remove: (id) => http.delete(`/payroll/absence-code-catalog/${id}`),
+}
+
+export const rateRules = {
+  list:   ()        => http.get('/payroll/rate-rules').then(r => r.data),
+  create: (d)       => http.post('/payroll/rate-rules', d).then(r => r.data),
+  update: (id, d)   => http.put(`/payroll/rate-rules/${id}`, d).then(r => r.data),
+  remove: (id)      => http.delete(`/payroll/rate-rules/${id}`),
 }
 
 export const employees = {

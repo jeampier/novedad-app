@@ -18,6 +18,9 @@ import PeriodsPage     from './pages/payroll/PeriodsPage'
 import RecordsPage          from './pages/payroll/RecordsPage'
 import PayrollSettingsPage  from './pages/payroll/PayrollSettingsPage'
 import AbsenceTypesPage          from './pages/payroll/AbsenceTypesPage'
+import PayrollRateRulesPage      from './pages/payroll/PayrollRateRulesPage'
+import EmployeeHistoryPage       from './pages/payroll/EmployeeHistoryPage'
+import RequestsPage              from './pages/requests/RequestsPage'
 import PeriodScheduleGridPage    from './pages/payroll/PeriodScheduleGridPage'
 
 function PrivateRoute({ children }) {
@@ -40,6 +43,7 @@ export default function App() {
         <Routes>
           <Route path="/login"                element={<LoginPage />} />
           <Route path="/"                     element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/requests"             element={<PrivateRoute><RequestsPage /></PrivateRoute>} />
           <Route path="/absences"             element={<PrivateRoute><AbsencesPage /></PrivateRoute>} />
           <Route path="/accidents"            element={<PrivateRoute><AccidentsPage /></PrivateRoute>} />
           <Route path="/shifts"               element={<PrivateRoute><ShiftsPage /></PrivateRoute>} />
@@ -51,6 +55,8 @@ export default function App() {
           <Route path="/payroll/records"       element={<PrivateRoute><RecordsPage /></PrivateRoute>} />
           <Route path="/payroll/settings"       element={<PrivateRoute><PayrollSettingsPage /></PrivateRoute>} />
           <Route path="/payroll/absence-types" element={<PrivateRoute><AbsenceTypesPage /></PrivateRoute>} />
+          <Route path="/payroll/rate-rules"       element={<PrivateRoute><PayrollRateRulesPage /></PrivateRoute>} />
+          <Route path="/payroll/employee-history" element={<PrivateRoute><EmployeeHistoryPage /></PrivateRoute>} />
           <Route path="/payroll/periods/:id/schedule" element={<PrivateRoute><PeriodScheduleGridPage /></PrivateRoute>} />
           <Route path="/admin"                element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/admin/users"          element={<AdminRoute><UsersPage /></AdminRoute>} />

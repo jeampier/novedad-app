@@ -5,6 +5,163 @@ const fmt  = n => Number(n || 0).toLocaleString('es-CO')
 const fmtM = n => `$${fmt(n)}`
 const fmtH = n => Number(n || 0).toFixed(1)
 
+function printPayslip(record, period) {
+  const d   = record.calculation_details || {}
+  const ded = d.deductionDetail || {}
+  const conceptDedDetail = ded.conceptDeductionDetail || []
+  const pct = r => `${(r * 100).toFixed(1)}%`
+
+  const earningRows = [
+    { code: 'HORAS_ORD',          label: 'Salario básico' },
+    { code: 'AUX_TRANS',          label: 'Auxilio de transporte' },
+    { code: 'HORAS_EXT',          label: 'H. extra diurna (25%)' },
+    { code: 'HORAS_EXT_DIUR_DOM', label: 'H. extra diurna dom. (75%)' },
+    { code: 'HORAS_EXT_NOCT',     label: 'H. extra nocturna (75%)' },
+    { code: 'HORAS_EXT_NOCT_DOM', label: 'H. extra nocturna dom. (110%)' },
+    { code: 'HORAS_NOC',          label: 'Prima nocturna (35%)' },
+    { code: 'HORAS_REC',          label: 'Prima recargo (35%)' },
+    { code: 'HORAS_DOM',          label: 'Prima dom. diurna (75%)' },
+    { code: 'HORAS_REC_DOM_NOCT', label: 'Prima dom. nocturna (110%)' },
+  ].map(c => ({
+    ...c,
+    value: Number(d.concepts?.[c.code]?.value || 0),
+    hours: Number(d.concepts?.[c.code]?.hours || 0),
+  })).filter(c => c.value > 0)
+
+  const dedBase        = Number(ded.base || 0)
+  const health         = Number(ded.health || 0)
+  const pension        = Number(ded.pension || 0)
+  const solidarity     = Number(ded.solidarity || 0)
+  const healthRate     = Number(ded.healthRate || 0.04)
+  const pensionRate    = Number(ded.pensionRate || 0.04)
+  const solidarityRate = Number(ded.solidarityRate || 0.01)
+
+  const earnRows = earningRows.map(c => `
+    <tr>
+      <td>${c.label}</td>
+      <td class="num">${c.hours > 0 ? fmtH(c.hours) : '—'}</td>
+      <td class="num">${fmtM(c.value)}</td>
+    </tr>`).join('')
+
+  const dedRows = [
+    `<tr><td>Salud</td><td class="num">${fmtM(dedBase)}</td><td class="num">${pct(healthRate)}</td><td class="num">${fmtM(health)}</td></tr>`,
+    `<tr><td>Pensión</td><td class="num">${fmtM(dedBase)}</td><td class="num">${pct(pensionRate)}</td><td class="num">${fmtM(pension)}</td></tr>`,
+    solidarity > 0
+      ? `<tr><td>Fondo solidaridad</td><td class="num">${fmtM(dedBase)}</td><td class="num">${pct(solidarityRate)}</td><td class="num">${fmtM(solidarity)}</td></tr>`
+      : '',
+    ...conceptDedDetail.map(cd => `<tr><td>${cd.label}</td><td class="num">—</td><td class="num">—</td><td class="num">${fmtM(cd.value)}</td></tr>`),
+  ].join('')
+
+  const periodName  = period?.name || ''
+  const periodDates = period ? `${period.start_date} al ${period.end_date}` : ''
+  const today       = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Colilla — ${record.employee_name}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; background: #fff; padding: 24px 32px; }
+  .logo-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .company { font-size: 18px; font-weight: 700; color: #02005B; letter-spacing: 1px; }
+  .doc-title { font-size: 13px; font-weight: 600; color: #4F46E5; text-align: right; }
+  .doc-sub { font-size: 10px; color: #888; text-align: right; margin-top: 2px; }
+  hr { border: none; border-top: 2px solid #02005B; margin: 8px 0; }
+  .thin-hr { border: none; border-top: 1px solid #ddd; margin: 8px 0; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin-bottom: 12px; }
+  .info-item { display: flex; gap: 6px; }
+  .info-label { color: #888; white-space: nowrap; }
+  .info-val { font-weight: 600; }
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #4F46E5; margin: 12px 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  th { background: #EEF2FF; color: #4F46E5; font-size: 10px; padding: 4px 6px; text-align: left; }
+  th.num, td.num { text-align: right; }
+  td { padding: 3px 6px; border-bottom: 1px solid #f0f0f0; }
+  tfoot td { font-weight: 700; background: #f8f8ff; border-top: 1px solid #c7d2fe; }
+  .net-box { margin: 14px 0 0; padding: 10px 16px; background: #EEF2FF; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .net-label { font-size: 12px; font-weight: 600; color: #4F46E5; }
+  .net-value { font-size: 20px; font-weight: 700; color: #02005B; }
+  .days-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 4px; }
+  .day-cell { text-align: center; background: #f9fafb; border-radius: 6px; padding: 4px 2px; }
+  .day-val { font-weight: 700; font-size: 13px; }
+  .day-lbl { font-size: 9px; color: #888; }
+  .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
+  .sig-line { border-top: 1px solid #555; padding-top: 4px; text-align: center; font-size: 10px; color: #666; }
+  .footer { margin-top: 16px; font-size: 9px; color: #bbb; text-align: center; }
+  @media print { body { padding: 0; } @page { margin: 20mm 18mm; size: A4; } }
+</style>
+</head>
+<body>
+<div class="logo-row">
+  <div>
+    <div class="company">MAQUINOR</div>
+    <div style="font-size:10px;color:#888;">NIT: — · Sector metalúrgico</div>
+  </div>
+  <div>
+    <div class="doc-title">Comprobante de pago de nómina</div>
+    <div class="doc-sub">${periodName} · ${periodDates}</div>
+    <div class="doc-sub">Fecha de emisión: ${today}</div>
+  </div>
+</div>
+<hr/>
+
+<div class="info-grid">
+  <div class="info-item"><span class="info-label">Empleado:</span><span class="info-val">${record.employee_name}</span></div>
+  <div class="info-item"><span class="info-label">Cargo:</span><span class="info-val">${record.position || '—'}</span></div>
+  <div class="info-item"><span class="info-label">Documento:</span><span class="info-val">${record.document || '—'}</span></div>
+  <div class="info-item"><span class="info-label">Área / Grupo:</span><span class="info-val">${[record.area, record.group_name].filter(Boolean).join(' · ') || '—'}</span></div>
+  <div class="info-item"><span class="info-label">IBC:</span><span class="info-val">${fmtM(record.base_salary)}</span></div>
+  <div class="info-item"><span class="info-label">Tarifa hora:</span><span class="info-val">${fmtM(d.hourlyRate)}</span></div>
+</div>
+<div class="thin-hr"/>
+
+<p class="section-title">Novedades del período</p>
+<div class="days-grid">
+  <div class="day-cell"><div class="day-val" style="color:#4F46E5">${record.days_worked}</div><div class="day-lbl">Trabajados</div></div>
+  <div class="day-cell"><div class="day-val" style="color:#6B7280">${record.rest_days}</div><div class="day-lbl">Descansos</div></div>
+  <div class="day-cell"><div class="day-val" style="color:#F59E0B">${record.absence_days}</div><div class="day-lbl">Ausencias</div></div>
+  <div class="day-cell"><div class="day-val" style="color:#EF4444">${record.disability_days}</div><div class="day-lbl">Incapacidad</div></div>
+  <div class="day-cell"><div class="day-val" style="color:#10B981">${record.vacation_days}</div><div class="day-lbl">Vacaciones</div></div>
+  <div class="day-cell"><div class="day-val" style="color:#374151">${Number(record.days_worked||0)+Number(record.rest_days||0)+Number(record.absence_days||0)+Number(record.disability_days||0)+Number(record.vacation_days||0)}</div><div class="day-lbl">Total días</div></div>
+</div>
+
+<p class="section-title">Devengos</p>
+<table>
+  <thead><tr><th>Concepto</th><th class="num">Horas</th><th class="num">Valor</th></tr></thead>
+  <tbody>${earnRows}</tbody>
+  <tfoot><tr><td colspan="2">Total devengado</td><td class="num">${fmtM(record.gross_pay)}</td></tr></tfoot>
+</table>
+
+<p class="section-title">Deducciones</p>
+<table>
+  <thead><tr><th>Concepto</th><th class="num">Base</th><th class="num">Tasa</th><th class="num">Valor empleado</th></tr></thead>
+  <tbody>${dedRows}</tbody>
+  <tfoot><tr><td colspan="3">Total deducciones</td><td class="num">${fmtM(record.deductions)}</td></tr></tfoot>
+</table>
+
+<div class="net-box">
+  <span class="net-label">Neto a pagar</span>
+  <span class="net-value">${fmtM(record.net_pay)}</span>
+</div>
+
+<div class="signatures">
+  <div><div class="sig-line">Firma empleador / Autorizado</div></div>
+  <div><div class="sig-line">Firma empleado · ${record.document || ''}</div></div>
+</div>
+
+<div class="footer">Documento generado por el sistema de novedades MAQUINOR · ${today}</div>
+
+<script>window.onload = () => { window.print(); }</script>
+</body>
+</html>`
+
+  const w = window.open('', '_blank', 'width=800,height=900')
+  w.document.write(html)
+  w.document.close()
+}
+
 // Extraer valor de un concepto del detalle de cálculo
 function cv(r, code) {
   return Number(r.calculation_details?.concepts?.[code]?.value || 0)
@@ -23,10 +180,10 @@ const EARNING_CONCEPTS = [
   { code: 'HORAS_EXT_DIUR_DOM', label: 'Extra diurna dom. (75%)',    color: '#059669' },
   { code: 'HORAS_EXT_NOCT',     label: 'Extra nocturna (75%)',       color: '#059669' },
   { code: 'HORAS_EXT_NOCT_DOM', label: 'Extra nocturna dom. (110%)', color: '#059669' },
-  { code: 'HORAS_NOC',          label: 'Rec. nocturno (35%)',        color: '#F59E0B' },
-  { code: 'HORAS_REC',          label: 'Rec. general (35%)',         color: '#F59E0B' },
-  { code: 'HORAS_DOM',          label: 'Rec. dom. diurno (75%)',     color: '#F59E0B' },
-  { code: 'HORAS_REC_DOM_NOCT', label: 'Rec. dom. nocturno (110%)', color: '#F59E0B' },
+  { code: 'HORAS_NOC',          label: 'Prima nocturna (35%)',        color: '#F59E0B' },
+  { code: 'HORAS_REC',          label: 'Prima recargo (35%)',         color: '#F59E0B' },
+  { code: 'HORAS_DOM',          label: 'Prima dom. diurna (75%)',     color: '#F59E0B' },
+  { code: 'HORAS_REC_DOM_NOCT', label: 'Prima dom. nocturna (110%)', color: '#F59E0B' },
 ]
 
 function Section({ title, children }) {
@@ -38,7 +195,7 @@ function Section({ title, children }) {
   )
 }
 
-function DetailModal({ record, period, onClose }) {
+function DetailModal({ record, period, onClose, onPrint }) {
   const d = record.calculation_details || {}
   const hours = d.hours || {}
   const concepts = d.concepts || {}
@@ -83,7 +240,17 @@ function DetailModal({ record, period, onClose }) {
               {period && <>&nbsp;·&nbsp;Período: <span className="font-medium text-gray-600">{period.name}</span></>}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 text-2xl leading-none shrink-0">×</button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={onPrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer border-0 transition-all">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir colilla
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 text-2xl leading-none">×</button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-4">
@@ -415,10 +582,20 @@ export default function RecordsPage() {
                       <td className="px-4 py-3 text-right font-medium text-red-600 whitespace-nowrap">{fmtM(r.deductions)}</td>
                       <td className="px-4 py-3 text-right font-bold text-indigo-700 whitespace-nowrap">{fmtM(r.net_pay)}</td>
                       <td className="px-4 py-3 text-center">
-                        <button onClick={() => setSelected(r)}
-                          className="text-xs text-indigo-600 hover:underline cursor-pointer bg-transparent border-0 p-0 whitespace-nowrap">
-                          Ver detalle
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setSelected(r)}
+                            className="text-xs text-indigo-600 hover:underline cursor-pointer bg-transparent border-0 p-0 whitespace-nowrap">
+                            Ver detalle
+                          </button>
+                          <button onClick={() => printPayslip(r, currentPeriod)}
+                            title="Imprimir colilla"
+                            className="text-gray-400 hover:text-indigo-600 cursor-pointer bg-transparent border-0 p-0 transition-colors">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                              <rect x="6" y="14" width="12" height="8"/>
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -454,6 +631,7 @@ export default function RecordsPage() {
           record={selected}
           period={currentPeriod}
           onClose={() => setSelected(null)}
+          onPrint={() => printPayslip(selected, currentPeriod)}
         />
       )}
     </div>

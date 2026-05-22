@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react'
 import http from '../../api/client'
+import { absenceTypes as absenceTypesApi } from '../../api/payroll'
 import { useCommand } from '../../hooks/useCommand'
 import EmployeeSelect from '../../components/EmployeeSelect'
 
 const inp = "w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
 
-const TYPES = [
-  { value: 'incapacidad', label: 'Incapacidad médica',  color: 'bg-red-100 text-red-700' },
-  { value: 'vacaciones',  label: 'Vacaciones',           color: 'bg-blue-100 text-blue-700' },
-  { value: 'permiso',     label: 'Permiso personal',     color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'otro',        label: 'Otro',                 color: 'bg-gray-100 text-gray-600' },
+const TYPE_COLORS = [
+  'bg-red-100 text-red-700',
+  'bg-blue-100 text-blue-700',
+  'bg-yellow-100 text-yellow-700',
+  'bg-green-100 text-green-700',
+  'bg-purple-100 text-purple-700',
+  'bg-orange-100 text-orange-700',
 ]
 
-function typeMeta(value) {
-  return TYPES.find(t => t.value === value) || { label: value, color: 'bg-gray-100 text-gray-600' }
+function buildTypeMeta(types) {
+  const map = {}
+  types.forEach((t, i) => {
+    map[t.code] = { label: t.name, color: TYPE_COLORS[i % TYPE_COLORS.length] }
+  })
+  return map
 }
 
 function fmt(d) {
@@ -41,17 +48,24 @@ function Modal({ onClose, children }) {
 const EMPTY = { employeeId: null, type: '', startDate: '', endDate: '', reason: '' }
 
 export default function AbsencesPage() {
-  const [list,    setList]    = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search,  setSearch]  = useState('')
+  const [list,       setList]       = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [modal,   setModal]   = useState(false)
-  const [form,    setForm]    = useState(EMPTY)
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState('')
+  const [modal,      setModal]      = useState(false)
+  const [form,       setForm]       = useState(EMPTY)
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState('')
+  const [success,    setSuccess]    = useState('')
+  const [absTypes,   setAbsTypes]   = useState([])
 
   const { execute } = useCommand('RegisterAbsence')
+
+  useEffect(() => {
+    absenceTypesApi.list()
+      .then(data => setAbsTypes(data.filter(t => t.active)))
+      .catch(() => {})
+  }, [])
 
   const load = () => {
     setLoading(true)
@@ -83,8 +97,9 @@ export default function AbsencesPage() {
     return true
   })
 
+  const typeMeta = buildTypeMeta(absTypes)
   const thisMonth = list.filter(a => isThisMonth(a.created_at)).length
-  const byType = Object.fromEntries(TYPES.map(t => [t.value, list.filter(a => a.type === t.value).length]))
+  const byType = Object.fromEntries(absTypes.map(t => [t.code, list.filter(a => a.type === t.code).length]))
 
   return (
     <div className="p-8">
@@ -114,8 +129,12 @@ export default function AbsencesPage() {
         {[
           { label: 'Total registradas', value: list.length, color: 'text-indigo-700', bg: 'bg-indigo-50' },
           { label: 'Este mes',          value: thisMonth,   color: 'text-blue-700',   bg: 'bg-blue-50' },
-          { label: 'Incapacidades',     value: byType['incapacidad'] || 0, color: 'text-red-700', bg: 'bg-red-50' },
-          { label: 'Vacaciones',        value: byType['vacaciones']  || 0, color: 'text-yellow-700', bg: 'bg-yellow-50' },
+          ...absTypes.slice(0, 2).map((t, i) => ({
+            label: t.name,
+            value: byType[t.code] || 0,
+            color: i === 0 ? 'text-red-700' : 'text-yellow-700',
+            bg:    i === 0 ? 'bg-red-50'    : 'bg-yellow-50',
+          })),
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-2xl p-4`}>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -131,7 +150,7 @@ export default function AbsencesPage() {
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
           className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-indigo-500 bg-white cursor-pointer">
           <option value="">Todos los tipos</option>
-          {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {absTypes.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}
         </select>
       </div>
 
@@ -160,7 +179,6 @@ export default function AbsencesPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(a => {
-                  const tm = typeMeta(a.type)
                   return (
                     <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-4">
@@ -172,7 +190,9 @@ export default function AbsencesPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tm.color}`}>{tm.label}</span>
+                        {(() => { const tm = typeMeta[a.type] || { label: a.type, color: 'bg-gray-100 text-gray-600' }; return (
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tm.color}`}>{tm.label}</span>
+                        )})()}
                       </td>
                       <td className="px-5 py-4 text-gray-600">{fmt(a.start_date)}</td>
                       <td className="px-5 py-4 text-gray-400">{a.end_date ? fmt(a.end_date) : '—'}</td>
@@ -202,15 +222,19 @@ export default function AbsencesPage() {
 
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block font-medium">Tipo de ausencia *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {TYPES.map(t => (
-                  <button key={t.value} type="button" onClick={() => set('type', t.value)}
-                    className={`px-3 py-2.5 rounded-xl border text-sm font-medium text-left transition-all cursor-pointer
-                      ${form.type === t.value ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              {absTypes.length === 0 ? (
+                <p className="text-xs text-gray-400">Cargando tipos...</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {absTypes.map(t => (
+                    <button key={t.code} type="button" onClick={() => set('type', t.code)}
+                      className={`px-3 py-2.5 rounded-xl border text-sm font-medium text-left transition-all cursor-pointer
+                        ${form.type === t.code ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'}`}>
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
