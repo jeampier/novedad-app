@@ -16,21 +16,35 @@ POST   /api/commands
 // Empleados
 GET    /api/employees
 GET    /api/employees/:id
-POST   /api/employees           → OnboardEmployee
-PUT    /api/employees/:id       → (directo, no usa command bus)
+GET    /api/employees/:id/history      → historial de nómina del empleado
+POST   /api/employees                  → OnboardEmployee
+PUT    /api/employees/:id              → (directo, no usa command bus)
 PATCH  /api/employees/:id/status
+
+// Contratos
+GET    /api/contracts                  → todos los contratos con nombre de empleado
+GET    /api/contracts/employee/:id     → contratos de un empleado
+GET    /api/contracts/:id              → un contrato por ID
+POST   /api/commands { CreateContract }
+POST   /api/commands { UpdateContractStatus }
+
+// Solicitudes
+GET    /api/requests
+POST   /api/commands { CreateRequest }
+POST   /api/commands { ApproveRequest }
+POST   /api/commands { RejectRequest }
 
 // Ausencias
 GET    /api/absences
-POST   /api/absences            → RegisterAbsence (vía command bus)
+POST   /api/absences                   → RegisterAbsence (vía command bus)
 
 // Accidentes
 GET    /api/accidents
-POST   /api/accidents           → RegisterAccident (vía command bus)
+POST   /api/accidents                  → RegisterAccident (vía command bus)
 
 // Turnos
 GET    /api/shifts
-POST   /api/shifts              → ChangeShift (vía command bus)
+POST   /api/shifts                     → ChangeShift (vía command bus)
 
 // Dashboard
 GET    /api/dashboard/summary
@@ -45,20 +59,26 @@ PATCH                /api/payroll/periods/:id/close
 PATCH                /api/payroll/periods/:id/reopen
 POST                 /api/payroll/periods/:id/import-schedule
 GET                  /api/payroll/periods/:id/schedule-grid
-POST                 /api/payroll/calculate
+POST                 /api/payroll/calculate             → cálculo completo con logs y advertencias
+POST                 /api/payroll/calculate/dry-run     → simulación sin persistencia
 GET                  /api/payroll/records
 GET                  /api/payroll/records/:id
+GET                  /api/payroll/records/employee/:id  → historial por empleado
 GET                  /api/payroll/export
 GET/PUT              /api/payroll/settings
 GET/POST/PUT/DELETE  /api/payroll/concepts
 GET/POST/PUT/DELETE  /api/payroll/concepts/:id/rules
 GET/POST/PUT/DELETE  /api/payroll/absence-types
 GET/POST/DELETE      /api/payroll/absence-code-catalog
+GET/POST/PUT/DELETE  /api/payroll/rate-rules            → tasas por grupo/cargo
+GET                  /api/payroll/validation-rules      → reglas de validación
+POST   /api/commands { UpdateValidationRule }           → activar/desactivar regla
 
 // Administración (requiere rol admin)
 GET/POST/PUT/DELETE  /api/admin/users
 GET/POST/PUT/DELETE  /api/admin/roles
 GET                  /api/admin/audit
+POST                 /api/admin/cleanup                 → limpieza de datos (solo con confirm='limpiar')
 ```
 
 ---
@@ -115,11 +135,18 @@ const bus = {
 `src/commands/index.js` registra todos los comandos al iniciar:
 
 ```javascript
-bus.register('RegisterAbsence',  absenceHandler.registerAbsence)
-bus.register('RegisterAccident', accidentHandler.registerAccident)
-bus.register('ChangeShift',      shiftHandler.changeShift)
-bus.register('OnboardEmployee',  employeeHandler.onboardEmployee)
-bus.register('OffboardEmployee', employeeHandler.offboardEmployee)
+bus.register('RegisterAbsence',      absenceHandler.registerAbsence)
+bus.register('RegisterAccident',     accidentHandler.registerAccident)
+bus.register('ChangeShift',          shiftHandler.changeShift)
+bus.register('OnboardEmployee',      employeeHandler.onboardEmployee)
+bus.register('OffboardEmployee',     employeeHandler.offboardEmployee)
+bus.register('CreateContract',       contractsHandler.createContract)
+bus.register('UpdateContractStatus', contractsHandler.updateContractStatus)
+bus.register('UpdateValidationRule', validationRulesHandler.updateValidationRule)
+bus.register('CreateRequest',        requestHandler.createRequest)
+bus.register('ApproveRequest',       requestHandler.approveRequest)
+bus.register('RejectRequest',        requestHandler.rejectRequest)
+// ... y demás comandos de nómina
 ```
 
 La ruta `/api/commands` recibe `{ command, payload }` y hace `bus.dispatch(command, payload, { userId: req.user.id })`.
@@ -139,6 +166,7 @@ Cada repositorio encapsula las queries SQL de una entidad. Convenciones:
 | Repositorio | Métodos principales |
 |-------------|---------------------|
 | `employeeRepo` | `findAll()`, `findById(id)`, `create(d)`, `update(id,d)`, `deactivate(d)`, `setStatus(id,status)` |
+| `contractsRepo` | `findAll()`, `findByEmployee(empId)`, `findById(id)`, `create(d)`, `updateStatus(id,status)` |
 | `absenceRepo` | `findAll()`, `create(d)` |
 | `absenceTypeRepo` | `findAll()`, `findActive()`, `create(d)`, `update(id,d)`, `remove(id)` |
 | `accidentRepo` | `findAll()`, `create(d)` |
@@ -147,9 +175,11 @@ Cada repositorio encapsula las queries SQL de una entidad. Convenciones:
 | `workScheduleRepo` | `findByMonth(y,m)`, `upsert(d)`, `upsertBulk(entries,userId)`, `remove(id)`, `findForPeriod(start,end)` |
 | `holidayRepo` | `findByYear(y)`, `create(d)`, `remove(id)` |
 | `payrollPeriodRepo` | `findAll()`, `findById(id)`, `create(d)`, `close(id)`, `reopen(id)` |
-| `payrollRecordRepo` | `findByPeriod(periodId)`, `findById(id)`, `upsert(d)` |
+| `payrollRecordRepo` | `findByPeriod(periodId)`, `findById(id)`, `findByEmployee(empId)`, `upsert(d)` |
 | `conceptRepo` | `findAll()`, `findById(id)`, `create(d)`, `update(id,d)`, `remove(id)` |
 | `ruleRepo` | `findByConceptId(cid)`, `create(cid,d)`, `update(cid,rid,d)`, `remove(cid,rid)` |
+| `validationRulesRepo` | `findAll()`, `findActive()`, `update(id,d)` |
+| `rateRulesRepo` | `findAll()`, `create(d)`, `update(id,d)`, `remove(id)` |
 
 ---
 
@@ -173,7 +203,41 @@ evaluateConditions(conditions, variables)
 ```
 
 ### `payrollCalculator.js`
-Orquestador del motor de nómina. Crea una instancia de `PayrollEngine` y ejecuta el pipeline.
+Orquestador del motor de nómina. Expone `calculateWithLogs(periodId, userId, options)` que crea una instancia de `PayrollEngine` y ejecuta el pipeline completo, retornando `{ savedRecords, logs, warnings }`.
+
+---
+
+## Respuesta de `/api/payroll/calculate`
+
+```json
+{
+  "data": [...],
+  "message": "Nómina calculada para 45 empleados",
+  "warnings": [
+    "Juan García: Sin contrato activo",
+    "Pedro López: Sin programación en el período"
+  ],
+  "logs": [...]
+}
+```
+
+Las `warnings` las genera el paso `validateEmployees` del pipeline para las reglas activas. No bloquean el cálculo.
+
+---
+
+## Endpoint de limpieza — `POST /api/admin/cleanup`
+
+Diseñado para limpiar la base de datos antes de entregar el sistema al cliente.
+
+```json
+// Request
+{ "confirm": "limpiar" }
+
+// Response
+{ "message": "Base de datos limpiada correctamente" }
+```
+
+Trunca todas las tablas de datos y elimina todos los usuarios excepto `admin@novedad.com`. Requiere rol `admin` y la confirmación exacta `"limpiar"`.
 
 ---
 
@@ -218,3 +282,5 @@ async function query(text, params) {
 
 module.exports = { query, pool }
 ```
+
+> El SSL se activa automáticamente con `NODE_ENV=production`. Requerido por Seenode.

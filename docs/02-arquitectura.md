@@ -5,11 +5,16 @@
 | Capa | Tecnología | Versión | Deploy |
 |------|-----------|---------|--------|
 | Frontend | React + Vite + Tailwind CSS v4 | React 18 | Vercel |
-| Backend | Node.js + Express | Express 4 | Render |
-| Base de datos | PostgreSQL | 18.x | Neon (prod) / local (dev) |
+| Backend | Node.js + Express | Express 4 | Seenode |
+| Base de datos | PostgreSQL | 14+ | Seenode (prod) / local (dev) |
 | Auth | JWT + bcryptjs | — | — |
 | Fórmulas dinámicas | mathjs | 15.x | — |
 | Importación Excel | exceljs | 4.x | — |
+
+**URLs de producción:**
+- Frontend: Vercel (auto-deploy)
+- Backend: `https://novedad-api.ddns.net`
+- DB: `up-de-fra1-postgresql-2.db.run-on-seenode.com:11550`
 
 ---
 
@@ -18,46 +23,58 @@
 ```
 novedad-app/
 ├── backend/
+│   ├── startup.sh                ← Ejecuta migraciones y arranca el servidor (usado por Seenode)
 │   ├── src/
-│   │   ├── index.js                  ← Entry point Express, registra todas las rutas
+│   │   ├── index.js              ← Entry point Express, registra todas las rutas
 │   │   ├── commands/
-│   │   │   ├── commandBus.js         ← register() + dispatch()
-│   │   │   └── index.js              ← Registra todos los comandos
+│   │   │   ├── commandBus.js     ← register() + dispatch()
+│   │   │   └── index.js          ← Registra todos los comandos
 │   │   ├── core/
-│   │   │   └── payroll-engine/       ← Motor de nómina (ver doc 06)
+│   │   │   └── payroll-engine/   ← Motor de nómina (ver doc 06)
+│   │   │       ├── PayrollEngine.js
+│   │   │       ├── Pipeline.js
+│   │   │       ├── context.js
+│   │   │       ├── calculators/
+│   │   │       ├── concepts/
+│   │   │       └── pipeline/     ← 11 pasos del pipeline
 │   │   ├── db/
-│   │   │   ├── client.js             ← Pool PostgreSQL + query()
-│   │   │   ├── migrate*.js           ← Scripts de migración por módulo
-│   │   │   └── seed*.js              ← Datos iniciales
-│   │   ├── handlers/                 ← Lógica de negocio para comandos
+│   │   │   ├── client.js         ← Pool PostgreSQL + query()
+│   │   │   ├── migrate*.js       ← Scripts de migración por módulo
+│   │   │   └── seed*.js          ← Datos iniciales (shift_types, validation_rules)
+│   │   ├── handlers/             ← Lógica de negocio para comandos
 │   │   ├── middleware/
-│   │   │   ├── auth.js               ← requireAuth, requireRole
-│   │   │   └── auditLog.js           ← Registro de operaciones
-│   │   ├── repositories/             ← Acceso a datos (SQL puro)
-│   │   ├── routes/                   ← Rutas HTTP REST
-│   │   └── services/                 ← Servicios reutilizables
-│   ├── .env                          ← Variables de entorno (no en git)
-│   ├── package.json
-│   └── render.yaml                   ← Configuración de deploy en Render
+│   │   │   ├── auth.js           ← requireAuth, requireRole
+│   │   │   └── auditLog.js       ← Registro de operaciones
+│   │   ├── repositories/         ← Acceso a datos (SQL puro)
+│   │   └── routes/               ← Rutas HTTP REST
+│   │       ├── contracts.js
+│   │       ├── admin/
+│   │       │   └── cleanup.js    ← Endpoint de limpieza para pre-entrega
+│   │       └── payroll/
+│   ├── .env                      ← Variables de entorno (no en git)
+│   └── package.json
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── client.js             ← Axios base + interceptores + dispatch()
-│   │   │   └── payroll.js            ← Todas las llamadas a la API
+│   │   │   ├── client.js         ← Axios base + interceptores + dispatch()
+│   │   │   ├── contracts.js      ← Endpoints del módulo de contratos
+│   │   │   └── payroll.js        ← Todas las llamadas a la API agrupadas por módulo
 │   │   ├── components/
-│   │   │   ├── Layout.jsx            ← Sidebar + navegación principal
-│   │   │   └── EmployeeSelect.jsx    ← Dropdown reutilizable de empleados
+│   │   │   ├── Layout.jsx        ← Sidebar + navegación principal
+│   │   │   └── EmployeeSelect.jsx← Dropdown reutilizable de empleados
 │   │   ├── context/
-│   │   │   └── AuthContext.jsx       ← Estado de autenticación global
+│   │   │   └── AuthContext.jsx   ← Estado de autenticación global
 │   │   ├── hooks/
-│   │   │   └── useCommand.js         ← Hook para ejecutar comandos CQRS
-│   │   ├── pages/                    ← Una carpeta por módulo
-│   │   └── App.jsx                   ← Router principal con rutas privadas
-│   ├── .env                          ← VITE_API_URL
+│   │   │   └── useCommand.js     ← Hook para ejecutar comandos CQRS
+│   │   ├── pages/                ← Una carpeta por módulo
+│   │   │   ├── contracts/        ← Módulo de contratos
+│   │   │   └── payroll/
+│   │   └── App.jsx               ← Router principal con rutas privadas
+│   ├── .env                      ← VITE_API_URL
 │   └── package.json
 │
-└── docs/                             ← Esta documentación
+└── docs/                         ← Esta documentación
 ```
 
 ---
@@ -86,6 +103,13 @@ Comandos registrados:
 | `ChangeShift` | shiftHandler | Cambia el turno de un empleado |
 | `OnboardEmployee` | employeeHandler | Da de alta un empleado |
 | `OffboardEmployee` | employeeHandler | Da de baja un empleado |
+| `CreateContract` | contractsHandler | Crea un contrato laboral |
+| `UpdateContractStatus` | contractsHandler | Cambia el estado de un contrato |
+| `UpdateValidationRule` | validationRulesHandler | Activa/desactiva una regla de validación |
+| `CreateAbsenceType` | absenceTypeHandler | Crea un tipo de ausencia |
+| `UpdateAbsenceType` | absenceTypeHandler | Actualiza un tipo de ausencia |
+| `CreateShiftType` | shiftTypeHandler | Crea un tipo de turno |
+| `CreatePeriod` | periodHandler | Crea un período de nómina |
 
 Las **consultas** (GET) van directo por rutas REST, sin pasar por el command bus.
 
@@ -96,12 +120,12 @@ Las **consultas** (GET) van directo por rutas REST, sin pasar por el command bus
 Cada entidad tiene su repositorio con SQL puro y parámetros posicionales (`$1`, `$2`):
 
 ```javascript
-// Ejemplo: absenceTypeRepo.js
-async findAll()     → SELECT * FROM absence_types ORDER BY active DESC, name
-async findActive()  → SELECT * WHERE active = true
-async create(d)     → INSERT ... RETURNING *
-async update(id, d) → UPDATE ... WHERE id = $1 RETURNING *
-async remove(id)    → DELETE WHERE id = $1
+// Ejemplo: contractsRepo.js
+async findAll()              → SELECT con JOIN a employees
+async findByEmployee(empId)  → SELECT WHERE employee_id = $1
+async findById(id)           → SELECT WHERE id = $1
+async create(d)              → INSERT ... RETURNING *
+async updateStatus(id, s)    → UPDATE SET status = $1 WHERE id = $2 RETURNING *
 ```
 
 No hay ORM. El cliente de DB devuelve filas en `result.rows`.
@@ -110,11 +134,12 @@ No hay ORM. El cliente de DB devuelve filas en `result.rows`.
 
 ### 3. Pipeline (Motor de nómina)
 
-El cálculo de nómina sigue un pipeline de 8 pasos secuenciales. Cada paso recibe y devuelve un objeto `context`:
+El cálculo de nómina sigue un pipeline de **11 pasos secuenciales**. Cada paso recibe y devuelve un objeto `context`:
 
 ```
-loadSettings → loadEmployees → loadSchedules → loadNovelties
-     → applyConcepts → applyRules → calculateTotals → persistPayroll
+loadSettings → loadEmployees → loadSchedules → loadNovelties → loadRateRules
+     → validateEmployees → applyConcepts → applyRules
+     → calculateTotals → persistPayroll → liquidateRequests
 ```
 
 Ver [Motor de nómina](./06-motor-nomina.md) para el detalle completo.
@@ -145,12 +170,14 @@ FRONTEND_URL=http://localhost:5173
 NODE_ENV=development
 ```
 
+> En producción `NODE_ENV=production` activa SSL (`rejectUnauthorized: false`) requerido por Seenode.
+
 ### Frontend (`.env`)
 ```
 VITE_API_URL=http://localhost:3001/api
 ```
 
-En producción `VITE_API_URL` apunta a la URL de Render.
+En producción `VITE_API_URL` apunta a `https://novedad-api.ddns.net/api`.
 
 ---
 
@@ -163,10 +190,33 @@ Usuario (browser)
 React (Vercel)
     │  axios + JWT
     ▼
-Express API (Render)
+Express API (Seenode)
     │  requireAuth middleware
-    │  → ruta GET  → repository → PostgreSQL (Neon)
-    │  → ruta POST → commandBus → handler → repository → PostgreSQL (Neon)
+    │  → ruta GET  → repository → PostgreSQL (Seenode)
+    │  → ruta POST → commandBus → handler → repository → PostgreSQL (Seenode)
     ▼
-PostgreSQL (Neon en prod / local en dev)
+PostgreSQL (Seenode en prod / local en dev)
 ```
+
+---
+
+## startup.sh — arranque en producción
+
+Seenode ejecuta `startup.sh` al iniciar el contenedor. El script corre todas las migraciones en orden y luego arranca el servidor:
+
+```sh
+#!/bin/bash
+set -e
+node src/db/migrate_admin.js
+node src/db/migrate_payroll.js
+node src/db/migrate_concepts.js
+node src/db/migrate_employees.js
+node src/db/migrate_payroll_records.js
+node src/db/migrate_requests.js
+node src/db/migrate_contracts.js
+node src/db/migrate_absence_behavior.js
+node src/db/migrate_validation_rules.js
+npm start
+```
+
+Esto garantiza que cualquier migración nueva llegue a producción automáticamente en el próximo deploy.

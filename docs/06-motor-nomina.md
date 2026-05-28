@@ -6,7 +6,7 @@ El motor de nómina es la pieza más compleja del sistema. Se encuentra en `back
 
 ## Visión general
 
-Cuando el usuario hace clic en "Calcular nómina", se ejecuta un pipeline de **8 pasos secuenciales**. Cada paso lee y escribe en un objeto `context` compartido.
+Cuando el usuario hace clic en "Calcular nómina", se ejecuta un pipeline de **11 pasos secuenciales**. Cada paso lee y escribe en un objeto `context` compartido.
 
 ```
 POST /api/payroll/calculate { periodId }
@@ -15,19 +15,24 @@ POST /api/payroll/calculate { periodId }
 PayrollEngine.run(periodId, userId)
         │
         ▼
-┌─────────────────────────────────────────────────────────┐
-│  1. loadSettings    → carga tasas de payroll_settings   │
-│  2. loadEmployees   → empleados activos                 │
-│  3. loadSchedules   → work_schedule del período         │
-│  4. loadNovelties   → conceptos, reglas, tipos ausencia │
-│  5. applyConcepts   → calcula horas y earnings built-in │
-│  6. applyRules      → aplica conceptos dinámicos        │
-│  7. calculateTotals → deducciones SS y neto             │
-│  8. persistPayroll  → guarda en payroll_records         │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│   1. loadSettings       → carga tasas de payroll_settings        │
+│   2. loadEmployees      → empleados activos + info del período   │
+│   3. loadSchedules      → work_schedule del período              │
+│   4. loadNovelties      → conceptos, reglas, tipos ausencia      │
+│                            + construye absenceBehaviorMap        │
+│   5. loadRateRules      → tasas diferenciadas por grupo/cargo    │
+│   6. validateEmployees  → reglas de validación → ctx.warnings    │
+│   7. applyConcepts      → calcula horas y earnings built-in      │
+│   8. applyRules         → aplica conceptos dinámicos             │
+│   9. calculateTotals    → deducciones SS y neto                  │
+│  10. persistPayroll     → guarda en payroll_records              │
+│  11. liquidateRequests  → marca solicitudes aprobadas como       │
+│                            liquidadas                            │
+└──────────────────────────────────────────────────────────────────┘
         │
         ▼
-{ savedRecords: [...], logs: [...] }
+{ savedRecords: [...], warnings: [...], logs: [...] }
 ```
 
 ---
@@ -45,13 +50,18 @@ Fluye entre todos los pasos. Cada paso lo enriquece:
 
   // Cargado en paso 1
   settings: {
-    smmlv: 1750905,
-    aux_trans: 249095,
+    smmlv: 1423500,
+    aux_trans: 200000,
     tasa_salud: 0.04,
     tasa_pension: 0.04,
     tasa_solidaridad: 0.01,
     limite_aux_trans: 2,
     limite_solidaridad: 4,
+    _absenceBehaviorMap: {        // ← inyectado en paso 4
+      disability: 'incapacidad',
+      vacation:   'vacaciones',
+      paid_leave: 'licencia_remunerada',
+    },
   },
 
   // Cargado en paso 2
@@ -64,9 +74,19 @@ Fluye entre todos los pasos. Cada paso lo enriquece:
 
   // Cargado en paso 4
   dynamicConcepts: [{ id, code, name, type, rules: [...] }],
-  absenceTypesMap: { 'incapacidad': { deduction_pct: 0 }, 'ausencia': { deduction_pct: 1 }, ... },
+  absenceTypesMap: { 'incapacidad': { deduction_pct: 0, behavior: 'disability' }, ... },
+  absenceBehaviorMap: { disability: 'incapacidad', vacation: 'vacaciones', ... },
 
-  // Construido en pasos 5-7
+  // Cargado en paso 5
+  rateRules: [{ group_name, position, extra_multiplier, night_multiplier, ... }],
+
+  // Construido en paso 6
+  warnings: [
+    "Juan García: Sin contrato activo",
+    "Pedro López: Sin programación en el período",
+  ],
+
+  // Construido en pasos 7-9
   employeeResults: {
     [employee_id]: {
       employee: { ...datos },
@@ -84,7 +104,7 @@ Fluye entre todos los pasos. Cada paso lo enriquece:
     }
   },
 
-  // Resultado final (paso 8)
+  // Resultado final (paso 10)
   savedRecords: [...],
   logs: [{ step, level, message, data }],
 }
@@ -122,30 +142,57 @@ En paralelo:
   DB: SELECT * FROM payroll_rules WHERE active = true
   DB: SELECT * FROM absence_types WHERE active = true
 → ctx.dynamicConcepts (con reglas agrupadas por concept_id)
-→ ctx.absenceTypesMap (código → { deduction_pct })
+→ ctx.absenceTypesMap (código → { deduction_pct, behavior })
+
+Construye ctx.absenceBehaviorMap desde los registros con behavior != 'normal':
+  { disability: 'incapacidad', vacation: 'vacaciones', paid_leave: 'licencia_remunerada' }
+
+Inyecta ctx.settings._absenceBehaviorMap = ctx.absenceBehaviorMap
+  (para que HoursCalculator y auxTransporte accedan al mapa via settings)
 ```
 
-### Paso 5 — `applyConcepts`
+### Paso 5 — `loadRateRules`
+```
+DB: SELECT * FROM rate_rules ORDER BY group_name, position
+→ ctx.rateRules
+Permite que applyConcepts use tasas diferenciadas por grupo o cargo
+```
+
+### Paso 6 — `validateEmployees`
+```
+DB: SELECT * FROM payroll_validation_rules WHERE active = true
+Para cada regla activa, verifica la condición sobre los empleados:
+  CHECK_ACTIVE_CONTRACT → empleados sin contrato activo
+  CHECK_BASE_SALARY     → empleados con base_salary = 0
+  CHECK_RECALCULATION   → si ya existen payroll_records para el período
+  CHECK_SCHEDULE        → empleados sin días en schedulesByEmployee
+→ ctx.warnings = ["Juan García: Sin contrato activo", ...]
+No lanza errores — solo acumula advertencias.
+```
+
+### Paso 7 — `applyConcepts`
 
 Para cada empleado:
 
 1. Obtiene sus días del `schedulesByEmployee`
-2. Llama `HoursCalculator.aggregateEmployee(days, baseSalary)` que devuelve:
-   - Totales de horas por categoría
-   - Clasificación de días (trabajados, descanso, ausencia, incapacidad, vacaciones)
+2. Llama `HoursCalculator.aggregateEmployee(days, baseSalary, behaviorMap)`:
+   - `behaviorMap` viene de `ctx.settings._absenceBehaviorMap`
+   - Clasifica incapacidades y vacaciones por behavior, no por código hardcodeado
+   - Devuelve totales de horas y días por categoría
 3. Para cada concepto built-in del `ConceptRegistry`, llama `concept.calculate(employee, days, settings)`
 4. Calcula `DESC_AUSENCIA`:
    ```
-   Por cada tipo de ausencia con deduction_pct > 0:
+   Por cada tipo de ausencia con deduction_pct > 0 y behavior = 'normal':
      descuento += diasAusencia × (base_salary / 30) × deduction_pct
    ```
 5. Guarda todo en `ctx.employeeResults[emp.id]`
 
-### Paso 6 — `applyRules`
+### Paso 8 — `applyRules`
 
 Solo si hay `dynamicConcepts`. Para cada concepto dinámico:
 
 1. Construye el scope de variables con los datos del empleado
+   - `smmlv`: usa `employee.smmlv` o cae a `ctx.settings.smmlv` como fallback
 2. Itera las reglas ordenadas por `priority` ASC
 3. Para cada regla:
    ```
@@ -155,7 +202,7 @@ Solo si hay `dynamicConcepts`. Para cada concepto dinámico:
    ```
 4. Guarda el resultado en `ctx.employeeResults[emp.id].concepts[code]`
 
-### Paso 7 — `calculateTotals`
+### Paso 9 — `calculateTotals`
 
 Para cada empleado:
 
@@ -173,7 +220,7 @@ deductions = salud + pension + solidaridad + DESC_AUSENCIA + otros deductions
 netPay = grossPay - deductions
 ```
 
-### Paso 8 — `persistPayroll`
+### Paso 10 — `persistPayroll`
 
 Si `dryRun = true`: retorna los resultados sin escribir en DB.
 
@@ -188,6 +235,14 @@ Para cada empleado:
     calculation_details: JSON con el desglose completo
   })
   → INSERT ... ON CONFLICT (period_id, employee_id) DO UPDATE
+```
+
+### Paso 11 — `liquidateRequests`
+```
+DB: UPDATE requests SET status = 'liquidated'
+    WHERE status = 'approved' AND employee_id IN (empleados calculados)
+    AND period fechas solapan con el período calculado
+→ cierra el ciclo de solicitudes aprobadas en este período
 ```
 
 ---
@@ -225,7 +280,74 @@ Están en `src/core/payroll-engine/concepts/builtin/`. Todos siguen la misma int
 | `AUX_TRANS` | Auxilio de transporte | desde `payroll_settings` |
 | `DESC_AUSENCIA` | Descuento por ausencias | según `absence_types.deduction_pct` |
 
-> Los multiplicadores vienen de `shift_types`, no están hardcodeados en el motor.
+> Los multiplicadores vienen de `shift_types` o de `rate_rules` (si hay una regla específica para el grupo/cargo del empleado).
+
+---
+
+## `HoursCalculator`
+
+`src/core/payroll-engine/calculators/HoursCalculator.js`
+
+Función principal: `aggregateEmployee(days, baseSalary, behaviorMap)`
+
+El `behaviorMap` se pasa desde `ctx.settings._absenceBehaviorMap` y permite identificar los tipos especiales por su comportamiento semántico, sin depender de códigos hardcodeados.
+
+Para cada día en el array:
+- Si `is_rest_day`: cuenta como `restDays`
+- Si `absence_type` coincide con `behaviorMap.disability`: cuenta como `disabilityDays`
+- Si `absence_type` coincide con `behaviorMap.vacation`: cuenta como `vacationDays`
+- Si `absence_type` (otro): cuenta como `absenceDays`
+- Si tiene `shift_type_id`: suma horas por categoría × multiplicador del turno
+
+Devuelve:
+```javascript
+{
+  daysWorked, restDays, absenceDays, disabilityDays, vacationDays,
+  ordinary, extra, extraDiurDom, extraNoct, extraNoctDom,
+  night, surcharge, sundayHoliday, recDomNoct,
+  grossPay, hourlyRate,
+  breakdown: [{ date, shiftCode, ordinary, extra, ..., pay }]
+}
+```
+
+---
+
+## `auxTransporte` — concepto built-in
+
+`src/core/payroll-engine/concepts/builtin/auxTransporte.js`
+
+Usa el `_absenceBehaviorMap` para determinar si el empleado aplica para el auxilio:
+- Empleados con incapacidad (`disability`) o con `paid_leave` en el período no reciben el auxilio
+- El código de incapacidad se resuelve por `behaviorMap.disability`, no hardcodeado
+
+```javascript
+const behaviorMap    = settings._absenceBehaviorMap || {}
+const disabilityCode = behaviorMap.disability
+const paidLeaveCode  = behaviorMap.paid_leave
+
+const hasDisability = days.some(d => d.absence_type === disabilityCode)
+const hasPaidLeave  = days.some(d => d.absence_type === paidLeaveCode)
+```
+
+---
+
+## Sistema de advertencias
+
+El paso `validateEmployees` genera `ctx.warnings[]` sin interrumpir el cálculo. Las advertencias se retornan en la respuesta de la API:
+
+```json
+{
+  "data": [...],
+  "message": "Nómina calculada para 45 empleados",
+  "warnings": [
+    "Juan García: Sin contrato activo",
+    "Pedro López: Sin programación en el período"
+  ],
+  "logs": [...]
+}
+```
+
+La UI muestra las advertencias en un panel ámbar después del cálculo exitoso. El administrador decide si son esperadas o requieren corrección antes de cerrar el período.
 
 ---
 
@@ -251,49 +373,18 @@ VALUES (
 );
 ```
 
-Durante el cálculo:
-1. Motor evalúa `days_worked >= 20`
-2. Si aplica: `base_salary * 0.05` → `1,750,905 * 0.05 = 87,545`
-3. Se agrega como concepto `BONIF_PROD` en el resultado del empleado
-
 ---
 
 ## Modo dry-run
 
-Permite simular el cálculo sin escribir en base de datos. Se activa pasando `dryRun: true`:
+Permite simular el cálculo sin escribir en base de datos:
 
 ```javascript
-POST /api/payroll/calculate
-{ "periodId": 3, "dryRun": true }
+POST /api/payroll/calculate/dry-run
+{ "periodId": 3 }
 ```
 
 Útil para verificar resultados antes de confirmar una liquidación.
-
----
-
-## `HoursCalculator`
-
-`src/core/payroll-engine/calculators/HoursCalculator.js`
-
-Función principal: `aggregateEmployee(days, baseSalary)`
-
-Para cada día en el array:
-- Si `is_rest_day`: cuenta como `restDays`
-- Si `absence_type = 'incapacidad'`: cuenta como `disabilityDays`
-- Si `absence_type = 'vacaciones'`: cuenta como `vacationDays`
-- Si `absence_type` (otro): cuenta como `absenceDays`
-- Si tiene `shift_type_id`: suma horas por categoría × multiplicador del turno
-
-Devuelve:
-```javascript
-{
-  daysWorked, restDays, absenceDays, disabilityDays, vacationDays,
-  ordinary, extra, extraDiurDom, extraNoct, extraNoctDom,
-  night, surcharge, sundayHoliday, recDomNoct,
-  grossPay, hourlyRate,
-  breakdown: [{ date, shiftCode, ordinary, extra, ..., pay }]
-}
-```
 
 ---
 

@@ -1,6 +1,6 @@
 # Base de datos
 
-PostgreSQL 18. Sin ORM. Queries con parámetros posicionales (`$1`, `$2`...) para prevenir inyección SQL.
+PostgreSQL 14+. Sin ORM. Queries con parámetros posicionales (`$1`, `$2`...) para prevenir inyección SQL.
 
 El cliente se importa desde `src/db/client.js`:
 ```javascript
@@ -22,8 +22,9 @@ permissions            absence_types             payroll_rules
 role_permissions       absence_code_catalog      payroll_settings
 login_history          accidents                 concept_execution_logs
 audit_log              holidays                  rule_snapshots
-                       work_schedule
+                       work_schedule             payroll_validation_rules
                        shift_types
+                       contracts
 ```
 
 ---
@@ -38,7 +39,7 @@ Cuentas de acceso al sistema.
 | id | serial PK | |
 | email | varchar(120) UNIQUE | Login |
 | password | varchar(120) | Hash bcrypt |
-| role | varchar(20) | `admin` \| `operator` (default: `admin`) |
+| role | varchar(20) | `admin` \| `supervisor` (default: `admin`) |
 | full_name | varchar(120) | Nombre visible en UI |
 | status | varchar(20) | `active` \| `inactive` |
 | last_login | timestamp | Actualizado en cada login |
@@ -72,14 +73,42 @@ Empleados activos e históricos de MAQUINOR.
 
 ---
 
+### `contracts`
+Contratos laborales de cada empleado. Un empleado puede tener múltiples contratos a lo largo del tiempo.
+
+| Columna | Tipo | Notas |
+|---------|------|-------|
+| id | serial PK | |
+| employee_id | FK → employees CASCADE | |
+| contract_type | varchar(50) | `indefinido`, `fijo`, `obra_labor`, `prestacion_servicios` |
+| start_date | date | Fecha de inicio del contrato |
+| end_date | date | Fecha de fin (null para indefinido) |
+| position | varchar(100) | Cargo especificado en el contrato |
+| base_salary | numeric(12,2) | Salario base del contrato |
+| status | varchar(20) | `activo` \| `suspendido` \| `terminado` |
+| notes | text | Observaciones |
+| created_at | timestamp | |
+
+**Índices:** `idx_contracts_employee` sobre `employee_id`.
+
+**Estados:**
+```
+activo  →  suspendido  →  activo
+  └─────────────────────→  terminado (estado final)
+```
+
+**Comandos:** `CreateContract`, `UpdateContractStatus`
+
+---
+
 ### `shift_types`
 Catálogo de tipos de turno. Cada turno define cuántas horas de cada categoría tiene un día laboral.
 
 | Columna | Tipo | Notas |
 |---------|------|-------|
 | id | serial PK | |
-| code | varchar(20) UNIQUE | Ej: `L`, `N`, `M` |
-| name | varchar(80) | Ej: `Laboral`, `Nocturno` |
+| code | varchar(20) UNIQUE | Ej: `M`, `T`, `N`, `11H` |
+| name | varchar(80) | Ej: `Turno Mañana` |
 | start_time / end_time | time | Hora de entrada/salida |
 | ordinary_hours | numeric(4,2) | Horas ordinarias por día |
 | extra_hours | numeric(4,2) | Horas extra diurnas |
@@ -100,6 +129,8 @@ Catálogo de tipos de turno. Cada turno define cuántas horas de cada categoría
 | rec_dom_noct_multiplier | numeric(4,2) | Factor × (default: 2.10) |
 | color | varchar(10) | Color hex para la UI |
 | active | boolean | |
+
+**Seeds MAQUINOR:** `M` (Mañana 6–14), `T` (Tarde 14–22), `N` (Noche 22–6), `11H` (7–18 con 2h extra).
 
 ---
 
@@ -138,7 +169,7 @@ Registro formal de ausencias (distinto al cuadro operativo).
 ---
 
 ### `absence_types`
-Catálogo configurable de tipos de ausencia. Controla el descuento en nómina.
+Catálogo configurable de tipos de ausencia. Controla el descuento y el comportamiento en el motor de nómina.
 
 | Columna | Tipo | Notas |
 |---------|------|-------|
@@ -147,16 +178,27 @@ Catálogo configurable de tipos de ausencia. Controla el descuento en nómina.
 | name | varchar(120) | Nombre visible |
 | description | text | |
 | deduction_pct | numeric(5,4) | 0.0 a 1.0 (ej: `1.0` = 100% descuento) |
+| behavior | varchar(20) | `normal` \| `disability` \| `vacation` \| `paid_leave` |
 | active | boolean | Solo los activos aparecen en formularios |
+
+**Campo `behavior`:** le indica al motor de nómina cómo tratar el tipo de ausencia internamente, independiente del `code` o `name`. Permite renombrar tipos sin romper el cálculo.
+
+| behavior | Efecto en motor |
+|---|---|
+| `normal` | Descuenta según `deduction_pct` |
+| `disability` | No descuenta; excluye del auxilio de transporte |
+| `vacation` | No descuenta; tratamiento especial de vacaciones |
+| `paid_leave` | No descuenta; conserva todos los devengos |
 
 **Valores por defecto:**
 
-| code | name | deduction_pct |
-|------|------|---------------|
-| `ausencia` | Ausencia | 1.00 (100%) |
-| `permiso` | Permiso | 0.00 (0%) |
-| `incapacidad` | Incapacidad (EPS) | 0.00 (0%) |
-| `vacaciones` | Vacaciones | 0.00 (0%) |
+| code | name | deduction_pct | behavior |
+|------|------|---------------|----------|
+| `ausencia` | Ausencia | 1.00 (100%) | `normal` |
+| `permiso` | Permiso | 0.00 (0%) | `normal` |
+| `incapacidad` | Incapacidad (EPS) | 0.00 (0%) | `disability` |
+| `vacaciones` | Vacaciones | 0.00 (0%) | `vacation` |
+| `licencia_remunerada` | Licencia remunerada | 0.00 (0%) | `paid_leave` |
 
 ---
 
@@ -217,13 +259,36 @@ Parámetros de nómina. Se actualizan cada año sin deploy.
 
 | key | Valor 2026 | Descripción |
 |-----|-----------|-------------|
-| `smmlv` | 1,750,905 | Salario mínimo mensual |
-| `aux_trans` | 249,095 | Auxilio de transporte |
+| `smmlv` | 1,423,500 | Salario mínimo mensual |
+| `aux_trans` | 200,000 | Auxilio de transporte |
 | `tasa_salud` | 0.04 | 4% — descuento empleado |
 | `tasa_pension` | 0.04 | 4% — descuento empleado |
 | `tasa_solidaridad` | 0.01 | 1% — solo si base > 4 SMMLV |
 | `limite_aux_trans` | 2 | Máximo en SMMLV para recibir aux. |
 | `limite_solidaridad` | 4 | Mínimo en SMMLV para pagar solidaridad |
+
+---
+
+### `payroll_validation_rules`
+Reglas de validación que el motor ejecuta antes de cada cálculo. Generan advertencias sin bloquear el cálculo.
+
+| Columna | Tipo | Notas |
+|---------|------|-------|
+| id | serial PK | |
+| code | varchar(60) UNIQUE | Identificador de la regla |
+| name | varchar(120) | Nombre visible en UI |
+| description | text | Explicación de qué detecta |
+| active | boolean | Si está activa, se ejecuta en cada cálculo |
+| created_at | timestamp | |
+
+**Reglas precargadas:**
+
+| code | name | Qué detecta |
+|------|------|-------------|
+| `CHECK_ACTIVE_CONTRACT` | Sin contrato activo | Empleados activos sin contrato vigente |
+| `CHECK_BASE_SALARY` | Salario base en cero | Empleados con IBC = $0 |
+| `CHECK_RECALCULATION` | Período ya calculado | El período tiene registros previos |
+| `CHECK_SCHEDULE` | Sin programación | Empleados sin días programados en el período |
 
 ---
 
@@ -256,7 +321,7 @@ Reglas para calcular conceptos dinámicos. Cada concepto puede tener varias regl
 | Variable | Descripción |
 |----------|-------------|
 | `base_salary` | Salario base del empleado |
-| `smmlv` | SMMLV del empleado |
+| `smmlv` | SMMLV del empleado (o de `payroll_settings` como fallback) |
 | `days_worked` | Días trabajados en el período |
 | `ordinary_hours` | Horas ordinarias |
 | `extra_hours` | Horas extra |
@@ -286,4 +351,4 @@ Historial de intentos de login (exitosos y fallidos).
 - Todas las tablas tienen `id SERIAL PRIMARY KEY` y `created_at TIMESTAMP DEFAULT now()`.
 - Las fechas de tipo `DATE` se devuelven como string `YYYY-MM-DD` (el cliente tiene configurado `types.setTypeParser(1082, val => val)` para evitar conversiones de timezone).
 - Las FKs de auditoría (`created_by`, `updated_by`) apuntan a `users(id)`.
-- Las migraciones usan `IF NOT EXISTS` para ser idempotentes.
+- Las migraciones usan `IF NOT EXISTS` para ser idempotentes y se ejecutan en `startup.sh`.

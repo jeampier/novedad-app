@@ -12,6 +12,7 @@ frontend/src/
 ├── main.jsx                  ← Entry point React
 ├── api/
 │   ├── client.js             ← Axios base + interceptores + dispatch()
+│   ├── contracts.js          ← Endpoints del módulo de contratos
 │   └── payroll.js            ← Todos los endpoints agrupados por módulo
 ├── components/
 │   ├── Layout.jsx            ← Sidebar + navegación
@@ -26,6 +27,7 @@ frontend/src/
     ├── employees/
     ├── absences/
     ├── accidents/
+    ├── contracts/            ← Módulo de contratos
     ├── shifts/
     ├── payroll/
     └── admin/
@@ -40,6 +42,7 @@ frontend/src/
 | `/login` | LoginPage | Público |
 | `/` | DashboardPage | Autenticado |
 | `/employees` | EmployeesPage | Autenticado |
+| `/contracts` | ContractsPage | Autenticado |
 | `/absences` | AbsencesPage | Autenticado |
 | `/accidents` | AccidentsPage | Autenticado |
 | `/shifts` | ShiftsPage | Autenticado |
@@ -99,28 +102,63 @@ export default http
 
 ---
 
+## API de contratos — `api/contracts.js`
+
+```javascript
+import http from './client'
+import { dispatch } from './client'
+
+export const contracts = {
+  list:           ()         => http.get('/contracts').then(r => r.data),
+  byEmployee:     (empId)    => http.get(`/contracts/employee/${empId}`).then(r => r.data),
+  get:            (id)       => http.get(`/contracts/${id}`).then(r => r.data),
+  create:         (d)        => dispatch('CreateContract', d),
+  updateStatus:   (id, s)    => dispatch('UpdateContractStatus', { id, status: s }),
+}
+```
+
+---
+
 ## API de nómina — `api/payroll.js`
 
 Todos los endpoints del sistema agrupados por módulo:
 
 ```javascript
-import { absenceTypes } from '../api/payroll'
+import { absenceTypes, validationRules, rateRules } from '../api/payroll'
 
-// Listar tipos de ausencia
-const tipos = await absenceTypes.list()
-
-// Crear
-await absenceTypes.create({ code, name, deduction_pct, active })
-
-// Actualizar
-await absenceTypes.update(id, { name, deduction_pct, active })
-
-// Eliminar
+// Tipos de ausencia
+await absenceTypes.list()
+await absenceTypes.create({ code, name, deduction_pct, behavior, active })
+await absenceTypes.update(id, { name, deduction_pct, behavior, active })
 await absenceTypes.remove(id)
+
+// Reglas de validación (solo lectura — se modifican por comando)
+await validationRules.list()
+// → [{ id, code, name, description, active }]
+
+// Tasas por grupo/cargo
+await rateRules.list()
+await rateRules.create(d)
+await rateRules.update(id, d)
+await rateRules.remove(id)
 ```
 
 Módulos disponibles en `payroll.js`:
-`dashboard`, `shiftTypes`, `schedule`, `holidays`, `periods`, `payroll`, `payrollSettings`, `absenceTypes`, `absenceCodeCatalog`, `employees`
+`dashboard`, `shiftTypes`, `schedule`, `holidays`, `periods`, `payroll`, `payrollSettings`, `absenceTypes`, `absenceCodeCatalog`, `rateRules`, `validationRules`, `employees`
+
+### Resultado de cálculo de nómina
+
+```javascript
+const res = await payroll.calculate(periodId)
+// res = {
+//   data: [...],
+//   message: "Nómina calculada para 45 empleados",
+//   warnings: ["Juan García: Sin contrato activo"],
+//   logs: [...]
+// }
+```
+
+La página `PeriodsPage.jsx` muestra el resultado con panel verde para éxito y panel ámbar para las advertencias.
 
 ---
 
@@ -142,19 +180,22 @@ La sesión se persiste en `localStorage` (`token` y `user`). Al recargar la pág
 
 ## Hook `useCommand` — `hooks/useCommand.js`
 
-Para operaciones de escritura que van por el command bus:
+Para operaciones de escritura que van por el command bus.
+
+> **Importante:** el nombre del comando se pasa al instanciar el hook, no en `execute`.
 
 ```javascript
+// Correcto
 const { execute, loading, error } = useCommand('RegisterAbsence')
+await execute({ employeeId, type, startDate, endDate, reason })
 
-// En el handler del formulario:
-await execute({
-  employeeId: form.employeeId,
-  type: form.type,
-  startDate: form.startDate,
-  endDate: form.endDate,
-  reason: form.reason,
-})
+// Contratos
+const { execute: createContract } = useCommand('CreateContract')
+await createContract({ employee_id, contract_type, start_date, base_salary })
+
+// Reglas de validación
+const { execute: toggleRule } = useCommand('UpdateValidationRule')
+await toggleRule({ id: rule.id, active: !rule.active })
 ```
 
 Maneja automáticamente `loading` y extrae el mensaje de error de `response.data.error`.
@@ -183,12 +224,11 @@ import EmployeeSelect from '../../components/EmployeeSelect'
 
 ## Layout y navegación — `components/Layout.jsx`
 
-El sidebar se incluye automáticamente en todas las rutas privadas. Tiene:
+El sidebar incluye todos los módulos. Tiene secciones colapsables que se abren automáticamente según la ruta activa:
 
-- Sección principal: Dashboard, Empleados, Ausencias, Accidentes, Turnos
-- Sección **Nómina** (colapsable): se abre automáticamente en rutas `/payroll/*`
-- Sección **Administración** (colapsable, solo admin): se abre en rutas `/admin/*`
-- Footer: email del usuario, rol y botón de cerrar sesión
+- **Principal:** Dashboard, Empleados, **Contratos**, Ausencias, Accidentes, Turnos
+- **Nómina** (colapsable): Programación, Tipos de turno, Tipos de ausencia, Períodos, Conceptos, Tasas grupo/cargo, Registros, Parámetros
+- **Administración** (colapsable, solo admin): Usuarios, Roles, Auditoría
 
 ---
 
@@ -220,17 +260,22 @@ const inp = "w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-g
 </div>
 ```
 
-### Mensajes de error/éxito
+### Mensajes de resultado del cálculo de nómina
 ```jsx
-// Error
-<div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">
-  {error}
+// Éxito sin advertencias
+<div className="bg-emerald-50 border border-emerald-200 text-emerald-700">
+  {calcResult.message}
 </div>
 
-// Éxito
-<div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
-  {success}
-</div>
+// Advertencias (ámbar) — se muestran junto al mensaje de éxito
+{calcResult.warnings?.length > 0 && (
+  <div className="bg-amber-50 border border-amber-200 text-amber-700">
+    <p>Advertencias ({calcResult.warnings.length})</p>
+    <ul>
+      {calcResult.warnings.map((w, i) => <li key={i}>• {w}</li>)}
+    </ul>
+  </div>
+)}
 ```
 
 ### Iconos
@@ -249,7 +294,7 @@ export default function MiModuloPage() {
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
 
-  // 2. Hook de comando (para mutaciones)
+  // 2. Hook de comando (para mutaciones) — nombre al instanciar
   const { execute } = useCommand('MiComando')
 
   // 3. Carga inicial

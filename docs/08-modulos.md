@@ -46,6 +46,69 @@ CRUD completo de empleados. El formulario de alta incluye:
 
 ---
 
+## Contratos
+
+**URL:** `/contracts`  
+**Tabla:** `contracts`  
+**Comandos:** `CreateContract`, `UpdateContractStatus`  
+**API frontend:** `src/api/contracts.js`
+
+Gestiona los contratos laborales de cada empleado. Un empleado puede tener múltiples contratos a lo largo del tiempo.
+
+### Tipos de contrato
+- `indefinido` — Sin fecha de terminación
+- `fijo` — Con fecha de fin definida
+- `obra_labor` — Para un proyecto específico
+- `prestacion_servicios` — Contratista independiente
+
+### Estados y transiciones
+```
+activo  →  suspendido  →  activo
+  └─────────────────────→  terminado (estado final)
+```
+
+### Endpoints REST disponibles
+```
+GET /api/contracts                    → todos los contratos con nombre de empleado
+GET /api/contracts/employee/:empId   → contratos de un empleado
+GET /api/contracts/:id               → un contrato por ID
+```
+
+### Campos del formulario de creación
+- `employee_id` (requerido)
+- `contract_type` (requerido)
+- `start_date` (requerido)
+- `end_date` (opcional)
+- `position` — cargo en el contrato
+- `base_salary` — salario del contrato
+- `notes` — observaciones
+
+---
+
+## Solicitudes
+
+**URL:** `/requests`  
+**Tablas:** `requests`  
+**Comandos:** `CreateRequest`, `ApproveRequest`, `RejectRequest`
+
+Flujo formal de aprobación para peticiones de empleados (permisos, vacaciones, incapacidades).
+
+### Estados del flujo
+```
+Pendiente  →  Aprobada  →  Liquidada (al calcular nómina del período)
+           →  Rechazada
+```
+
+### Pestañas en la UI
+- **Pendientes:** solicitudes nuevas que requieren decisión
+- **Aprobadas:** aprobadas, pendientes de liquidar en nómina
+- **Rechazadas:** solicitudes denegadas
+- **Liquidadas:** incluidas en un cálculo de nómina (cerradas por `liquidateRequests`)
+
+> Al aprobar una solicitud, el sistema crea automáticamente un registro de ausencia para ese empleado.
+
+---
+
 ## Ausencias
 
 **URL:** `/absences`  
@@ -113,7 +176,9 @@ Catálogo de turnos configurables. Cada turno define:
 - Multiplicadores (factores de pago por tipo de hora)
 - Color para la UI
 
-Los multiplicadores determinan cuánto se paga cada tipo de hora. Por ejemplo, si un turno tiene `extra_multiplier = 1.25`, las horas extra de ese turno se pagan al 125% de la tarifa base.
+Los multiplicadores determinan cuánto se paga cada tipo de hora. Si hay una `rate_rule` para el grupo o cargo del empleado, esa regla tiene prioridad sobre los multiplicadores del turno.
+
+**Seeds MAQUINOR:** `M` (Mañana), `T` (Tarde), `N` (Noche), `11H` (11 horas con 2h extra incluidas).
 
 ---
 
@@ -127,8 +192,9 @@ Catálogo configurable de tipos de ausencia. Controla el impacto en nómina.
 **Campos clave:**
 - `code`: debe coincidir con `work_schedule.absence_type`
 - `deduction_pct`: porcentaje de descuento por día (0.0 a 1.0)
-  - `1.0` = se descuenta el valor total del día del salario
-  - `0.0` = no hay descuento (ej: incapacidad la paga la EPS)
+- `behavior`: determina el tratamiento en el motor (`normal`, `disability`, `vacation`, `paid_leave`)
+
+> El `behavior` es la forma en que el motor identifica tipos especiales de ausencia. Permite renombrar el tipo sin romper el cálculo.
 
 Solo admin puede crear, editar o eliminar tipos.
 
@@ -148,8 +214,10 @@ Gestión de períodos de liquidación (quincenas o meses).
 Solo puede haber **un período abierto** a la vez (convención, no constraint en DB).
 
 Desde cada período se puede:
-- Ver la grilla de programación del período (`/payroll/periods/:id/schedule`)
+- Ver la grilla de programación del período
 - Importar la programación desde un archivo Excel
+- Calcular la nómina y ver advertencias del motor
+- Exportar en Excel o CSV
 
 ---
 
@@ -158,9 +226,7 @@ Desde cada período se puede:
 **URL:** `/payroll/periods/:id/schedule`  
 **Tabla:** `work_schedule` (filtrado por `period_id`)
 
-Vista de la programación vinculada a un período específico. Permite importar desde Excel usando el botón "Importar programación".
-
-**Formato del Excel de importación:** ver `README_IMPORTACION_DESCANSOS.md` en la carpeta frontend.
+Vista de la programación vinculada a un período específico. Permite importar desde Excel.
 
 ---
 
@@ -186,6 +252,22 @@ Se puede **simular** el cálculo de un concepto antes de activarlo.
 
 ---
 
+## Nómina — Tasas por grupo/cargo
+
+**URL:** `/payroll/rate-rules` (o dentro de Parámetros)  
+**Tabla:** `rate_rules`  
+**Archivo:** `routes/payroll/rateRules.js`
+
+Define multiplicadores diferenciados por **grupo de empleado** o por **cargo**. Tiene prioridad sobre los multiplicadores del tipo de turno.
+
+**Prioridad de aplicación en el motor:**
+1. Regla específica de grupo + cargo
+2. Solo grupo
+3. Solo cargo
+4. Multiplicadores del tipo de turno (fallback)
+
+---
+
 ## Nómina — Consolidado
 
 **URL:** `/payroll/records`  
@@ -195,16 +277,34 @@ Muestra los resultados del último cálculo por período. Permite:
 - Ver el desglose por empleado (horas, devengado, descuentos, neto)
 - Exportar en Excel o CSV
 
-El botón "Calcular nómina" dispara el motor de nómina para el período seleccionado. Si ya existe un cálculo previo, se sobreescribe.
-
 ---
 
 ## Nómina — Parámetros
 
 **URL:** `/payroll/settings`  
-**Tabla:** `payroll_settings`
+**Tablas:** `payroll_settings`, `absence_code_catalog`, `payroll_validation_rules`
 
-Parámetros que cambian anualmente (SMMLV, tasas de seguridad social, auxilio de transporte). Solo admin puede modificarlos.
+Pantalla central de configuración del sistema de nómina. Solo admin puede modificarlos.
+
+### Secciones de la página
+
+| Sección | Descripción |
+|---------|-------------|
+| **Parámetros globales** | SMMLV, auxilio de transporte, límites |
+| **Seguridad Social** | Tasas de salud, pensión y solidaridad |
+| **Catálogo de códigos de ausencia** | Códigos válidos para el cuadro Excel |
+| **Reglas de validación** | Toggle para activar/desactivar cada regla; activas = generan advertencias en el cálculo |
+
+### Reglas de validación
+
+Cada regla tiene un toggle que se guarda con el comando `UpdateValidationRule`:
+
+```javascript
+const { execute } = useCommand('UpdateValidationRule')
+await execute({ id: rule.id, active: !rule.active })
+```
+
+Las reglas activas se ejecutan en el paso `validateEmployees` del pipeline antes de cada cálculo.
 
 ---
 

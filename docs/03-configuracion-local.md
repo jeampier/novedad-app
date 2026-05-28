@@ -3,7 +3,7 @@
 ## Requisitos previos
 
 - Node.js 18+
-- PostgreSQL 14+ (local o acceso a Neon)
+- PostgreSQL 14+ (local)
 - Git
 
 ---
@@ -38,6 +38,8 @@ FRONTEND_URL=http://localhost:5173
 NODE_ENV=development
 ```
 
+> **Importante:** `NODE_ENV=development` desactiva SSL. En producción (Seenode) se usa `NODE_ENV=production` que activa SSL automáticamente en el cliente de PostgreSQL.
+
 ### Crear la base de datos local
 
 ```bash
@@ -59,12 +61,18 @@ npm run migrate:hours        # Categorías de horas adicionales en shift_types
 npm run migrate:absence-types      # absence_types con % descuento
 npm run migrate:absence-catalog    # absence_code_catalog
 npm run migrate:schedule-import    # period_id en work_schedule
+npm run migrate:requests     # Módulo de solicitudes
+npm run migrate:contracts    # Tabla de contratos laborales
+npm run migrate:absence-behavior   # Columna behavior en absence_types
+npm run migrate:validation-rules   # Tabla payroll_validation_rules
 ```
 
-### Cargar parámetros iniciales de nómina
+### Cargar datos iniciales
 
 ```bash
 npm run seed:settings        # Carga tasas 2026: SMMLV, aux. transporte, tasas SS
+npm run seed:shift-types     # Seeds 4 turnos MAQUINOR: M, T, N, 11H
+npm run seed:validation-rules # Seeds 4 reglas de validación del motor
 ```
 
 ### Crear usuario administrador (primera vez)
@@ -140,7 +148,12 @@ curl http://localhost:3001/api/auth/login \
 | `npm start` | Inicia sin recarga |
 | `npm run migrate` | Migración base |
 | `npm run migrate:*` | Migración específica por módulo |
-| `npm run seed:settings` | Carga parámetros de nómina |
+| `npm run migrate:contracts` | Crea tabla `contracts` |
+| `npm run migrate:absence-behavior` | Agrega columna `behavior` a `absence_types` |
+| `npm run migrate:validation-rules` | Crea tabla `payroll_validation_rules` |
+| `npm run seed:settings` | Carga parámetros de nómina (SMMLV, tasas) |
+| `npm run seed:shift-types` | Seeds turnos MAQUINOR (M, T, N, 11H) |
+| `npm run seed:validation-rules` | Seeds reglas de validación del motor |
 | `npm run seed:employees-excel` | Importa empleados desde Excel |
 
 ### Frontend
@@ -160,13 +173,13 @@ Cada repo tiene su propio git. Siempre hacer commit desde la carpeta correspondi
 ```bash
 # Para cambios en el backend
 cd backend
-git add src/routes/dashboard.js
+git add src/routes/contracts.js
 git commit -m "feat: descripción del cambio"
 git push origin main
 
 # Para cambios en el frontend
 cd frontend
-git add src/pages/DashboardPage.jsx
+git add src/pages/contracts/
 git commit -m "feat: descripción del cambio"
 git push origin main
 ```
@@ -178,5 +191,9 @@ git push origin main
 ## Deploy
 
 - **Frontend:** Vercel detecta el push a `main` del repo frontend y hace deploy automático.
-- **Backend:** Render detecta el push a `main` del repo backend y hace deploy automático.
-- **Base de datos:** Neon (PostgreSQL serverless). Las migraciones se ejecutan manualmente contra la DB de producción.
+- **Backend:** Seenode ejecuta `startup.sh` al iniciar el contenedor, lo que corre todas las migraciones en orden y luego arranca el servidor con `npm start`. Las migraciones nuevas llegan a producción automáticamente en el próximo deploy del backend.
+- **Base de datos:** PostgreSQL en Seenode. Para operaciones que no sean migraciones (seeds en producción), ejecutar con DATABASE_URL explícita:
+
+```bash
+NODE_ENV=production DATABASE_URL="postgresql://user:pass@up-de-fra1-postgresql-2.db.run-on-seenode.com:11550/dbname?sslmode=require" node src/db/seed_validation_rules.js
+```
